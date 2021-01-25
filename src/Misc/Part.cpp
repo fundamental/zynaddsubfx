@@ -32,6 +32,7 @@
 #include <cstring>
 #include <cassert>
 #include <ctime>
+#include <cmath>
 
 #include <rtosc/ports.h>
 #include <rtosc/port-sugar.h>
@@ -88,6 +89,7 @@ static const Ports partPorts = {
               "Active MIDI channel"),
     rParamZyn(Pvelsns,   rShort("sense"), rDefault(64), "Velocity sensing"),
     rParamZyn(Pveloffs,  rShort("offset"), rDefault(64),"Velocity offset"),
+    rParamZyn(Pbpm, rShort("BPM"), rDefault(120), "Beats Per Minute"),
     rToggle(Pnoteon, rDefault(true), "If the channel accepts note on events"),
     rOption(Pkitmode, rOptions(Off, Multi-Kit, Single-Kit), rDefault(Off),
             "Kit mode/enable\n"
@@ -318,6 +320,12 @@ Part::Part(Allocator &alloc, const SYNTH_T &synth_, const AbsTime &time_,
 
     defaults();
     assert(partefx[0]);
+    
+}
+void Part::SetBpm(int bpm_, long phase_){
+    Pbpm = bpm_;
+    phase = phase_;
+    printf("Part::SetBpm(%d, %lu)\n", bpm_, phase_);
 }
 
 Part::Kit::Kit(void)
@@ -774,6 +782,8 @@ void Part::SetController(unsigned int type, note_t note, float value,
         break;
     }
 }
+
+
 
 /*
  * Release the sustained keys
