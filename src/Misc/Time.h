@@ -24,12 +24,14 @@ class AbsTime
         void operator++(){++frames;};
         void operator++(int){frames++;};
         int64_t time() const {return frames;};
+        unsigned int tempo;
         float dt() const { return s.dt(); }
         float framesPerSec() const { return 1/s.dt();}
         int   samplesPerFrame() const {return s.buffersize;}
     private:
         int64_t frames;
         const SYNTH_T &s;
+        
 };
 
 //Marker for an event relative to some position of the absolute timer

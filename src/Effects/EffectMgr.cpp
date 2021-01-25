@@ -28,10 +28,13 @@
 #include "Phaser.h"
 #include "../Misc/XMLwrapper.h"
 #include "../Misc/Util.h"
+#include "../Misc/Time.h"
 #include "../Params/FilterParams.h"
 #include "../Misc/Allocator.h"
 
 namespace zyn {
+
+static const float S2DELAY = 127.0f / 40.0f;
 
 #define rObject EffectMgr
 #define rSubtype(name) \
@@ -115,6 +118,71 @@ static const rtosc::Ports local_ports = {
                     sprintf(tail+1, "parameter%d", i);
                     d.broadcast(loc, "i", eff->geteffectparrt(i));
                 }
+            }
+        }},
+    {"ratiofixed::i", rOptions(SPEEDRATIO_OPTIONS)
+        rProp(parameter) rLinear(0,21)
+        rDoc("select fixed ratio for BPM based delay") 
+        rDefault(off), NULL,
+        [](const char *msg, rtosc::RtData &d)
+        {
+            EffectMgr *eff = (EffectMgr*)d.obj;
+            if(rtosc_narguments(msg)) {
+                int val = rtosc_argument(msg, 0).i;
+                if (val) {
+                    int delay, Pfreq;
+                    float freq;
+                    switch(eff->nefx) {
+                    case 2:
+                        delay =  (int)(S2DELAY / eff->time->tempo * speedratios[limit(val, 0, (int)(sizeof(speedratios)/sizeof(speedratios[0]))-1)]);
+                        eff->seteffectparrt(2, delay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        freq =  (eff->time->tempo / 60.0f * speedratios[limit(val, 0, (int)(sizeof(speedratios)/sizeof(speedratios[0]))-1)]);
+                        // invert:
+                        //(powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
+                        Pfreq = logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f;
+                        eff->seteffectparrt(2, Pfreq);
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                }
+                d.broadcast(d.loc, "i", val);
+            } else {
+                float value = 0;
+                int delay, Pfreq;
+                float freq;
+                switch(eff->nefx) {
+                    case 2:
+                        delay = eff->geteffectparrt(2);
+                        value =  eff->time->tempo / S2DELAY * delay;
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        Pfreq = eff->geteffectparrt(2);
+                        freq = (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f;
+                        value = 60.0f / eff->time->tempo * freq;
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                int i;
+                int ind_last = ((int)sizeof(speedratios)/(int)sizeof(speedratios[0]));
+                for (i=0; i<ind_last; ++i) if (speedratios[i] == value) break;
+                d.reply(d.loc, "i", i); 
+                    
             }
         }},
     {"eq-coeffs:", rProp(internal) rDoc("Get equalizer Coefficients"), NULL,

@@ -477,7 +477,6 @@ static const Ports master_ports = {
             SNIP;
             sysefsendto.dispatch(msg, d);
         }},
-
     {"noteOn:iii:iiif", rDoc("Noteon Event"), 0,
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
@@ -497,11 +496,18 @@ static const Ports master_ports = {
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
             M->setController(rtosc_argument(m,0).i,rtosc_argument(m,1).i,rtosc_argument(m,2).i);}},
-
     {"setController:iii", rDoc("MIDI CC Event"), 0,
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
             M->setController(rtosc_argument(m,0).i,rtosc_argument(m,1).i,rtosc_argument(m,2).i);}},
+    {"tempo::i", rProp(parameter) rDefault(120) rShort("Tempo") rUnit(BPM) rDoc("Tempo / Beats per minute") rLinear(40, 200), 0,
+        rBegin;
+        if(!strcmp("i",rtosc_argument_string(msg))) {
+            m->time.tempo = rtosc_argument(msg, 0).i;
+            d.broadcast(d.loc, "i", m->time.tempo);
+        } else
+            d.reply(d.loc, "i", m->time.tempo);
+        rEnd},
     {"Panic:", rDoc("Stop all sound"), 0,
         [](const char *, RtData &d) {
             Master &M =  *(Master*)d.obj;
@@ -764,6 +770,9 @@ Master::Master(const SYNTH_T &synth_, Config* config)
 {
     bToU = NULL;
     uToB = NULL;
+    
+    // set default tempo
+    time.tempo = 120;
 
     //Setup MIDI Learn
     automate.set_ports(master_ports);

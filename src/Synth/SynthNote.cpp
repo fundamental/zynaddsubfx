@@ -184,6 +184,12 @@ void SynthNote::setFilterCutoff(float value)
         (value - 64.0f) * ctl.filtercutoff.depth / 4096.0f * 3.321928f;
 }
 
+void SynthNote::setBPM(int bpm_, int phase_)
+{
+    bpm = bpm_;
+    phase = phase_;
+}
+
 float SynthNote::getFilterCutoffRelFreq(void)
 {
     if (filtercutoff_relfreq.isSet() == false)

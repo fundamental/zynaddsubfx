@@ -31,7 +31,7 @@ class LFO
          * @param lfopars pointer to a LFOParams object
          * @param basefreq base frequency of LFO
          */
-        LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManager *m=0,
+        LFO(const LFOParams &lfopars_, float basefreq_, const AbsTime &t, WatchManager *m=0,
                 const char *watch_prefix=0);
         ~LFO();
 
@@ -48,9 +48,12 @@ class LFO
     
         float baseOut(const char waveShape, const float phase);
         float biquad(float input);
+        void updatePars();
+        
         lfo_state_type lfo_state;
         
-        //~ float out;
+        //tempo stored to detect changes
+        unsigned int tempo;
         //Phase of Oscillator
         float phase;
         //Phase Increment Per Frame
@@ -69,7 +72,8 @@ class LFO
         float lfointensity;
         //Amount Randomness
         float lfornd, lfofreqrnd;
-
+        // Ref to AbsTime object for time.tempo
+        const AbsTime &time;
         //Delay before starting
         RelTime delayTime;
 
@@ -90,9 +94,9 @@ class LFO
         //If After initialization there are no calls to random number gen.
         bool  deterministic;
 
-        const float     dt_;
-        const LFOParams &lfopars_;
-        const float basefreq_;
+        const float     dt;
+        const LFOParams &lfopars;
+        const float basefreq;
 
         float FcAbs, K, norm;
 

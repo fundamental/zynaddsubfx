@@ -231,6 +231,10 @@ typedef std::complex<fftw_real> fft_t;
                                     i++) \
                                     data_[i] = 0.0f; }
 
+static const float speedratios[21] = {0.0f, 8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.75f, 1.5f, 1.25f, 1.0f, 0.875f, 0.75f, 0.5f, 1.0f/3.0f, 0.25f, 0.2f, 1.0f/6.0f, 1.0f/7.0f, 0.125f};
+
+#define SPEEDRATIO_OPTIONS off, 8/1, 7/1, 6/1, 5/1, 4/1, 3/1, 2/1, 7/4, 3/2, 5/4, 1/1, 7/8, 3/4, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8, any
+
 enum ONOFFTYPE {
     OFF = 0, ON = 1
 };
