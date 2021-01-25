@@ -24,9 +24,14 @@ class AbsTime
         void operator++(){++frames;};
         void operator++(int){frames++;};
         int64_t time() const {return frames;};
+        unsigned long tStamp; // time stamp of the current buffer
+        unsigned long tRef; // time stamp midi message
+        int bpm;
+        int64_t time2nanos(int64_t t) {return (t-frames)*framesPerSec()*1000000000.0f;}; // referenceTime
         float dt() const { return s.dt(); }
-        float framesPerSec() const { return 1/s.dt();}
-        int   samplesPerFrame() const {return s.buffersize;}
+        float framesPerSec() const {return 1.0f/s.dt();}
+        int   framesPerBuffer() const {return s.buffersize;}
+        float bufferDuration() const {return s.buffersize*s.dt();}
     private:
         int64_t frames;
         const SYNTH_T &s;
@@ -43,7 +48,7 @@ class RelTime
             double deltaFrames = sec*t.framesPerSec();
             int64_t tmp = (int64_t)deltaFrames;
             frame = t.time() + tmp;
-            sample = (int32_t)(t.samplesPerFrame()*(deltaFrames-tmp));
+            sample = (int32_t)(t.framesPerBuffer()*(deltaFrames-tmp));
         }
         bool inThisFrame() {return t.time() == frame;};
         bool inPast() {return t.time() > frame;}

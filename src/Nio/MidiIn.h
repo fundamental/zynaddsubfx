@@ -32,11 +32,18 @@ class MidiIn:public virtual Engine
         virtual bool getMidiEn() const = 0;
         void midiProcess(unsigned char head,
                          unsigned char num,
-                         unsigned char value);
+                         unsigned char value, 
+                         unsigned long time = 0, 
+                         unsigned long nanos = 0, 
+                         unsigned long nframes = 0);
+
     private:
         uint8_t midiSysEx(unsigned char data);
         uint8_t sysex_offset;
         uint8_t sysex_data[64];
+        int frameLo, frame, secondLo, second, minuteLo, minute, hourLo, hour;
+        
+        
 };
 
 }

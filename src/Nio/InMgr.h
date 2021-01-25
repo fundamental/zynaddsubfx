@@ -24,7 +24,14 @@ enum midi_type {
     M_PGMCHANGE  = 3, // for program change
     M_PRESSURE   = 4, // for polyphonic aftertouch
     M_FLOAT_NOTE = 5, // for floating point note
-    M_FLOAT_CTRL = 6  // for floating point controller
+    M_FLOAT_CTRL = 6, // for floating point controller
+    M_TC         = 7, // for MIDI Timecode
+    M_SPP        = 8, // for Song Position Pointer
+    M_CLOCK      = 9, // for MIDI Clock Pulse
+    M_START      = 10,// for MIDI Transport Start
+    M_STOP       = 11,// for MIDI Transport Stop
+    M_CONTINUE   = 12,// for MIDI Transport Continue
+    M_TIME_SIG   = 13 // for MIDI Time Signature
 };
 
 struct MidiEvent {
@@ -33,7 +40,9 @@ struct MidiEvent {
     int type;    //type=1 for note, type=2 for controller
     int num;     //note, controller or program number
     int value;   //velocity or controller value
-    int time;    //time offset of event (used only in jack->jack case at the moment)
+    unsigned long time;    //absolute frame of the midi event
+    unsigned long nanos;    //nanoseconds of the midi event
+    unsigned long taudio;    //nanoseconds of the midi event
     float log2_freq;   //type=5,6 for logarithmic representation of note/parameter
 };
 
@@ -67,6 +76,7 @@ class InMgr
 
         /**the link to the rest of zyn*/
         class Master *master;
+        bool isPlaying = false;
 };
 
 }

@@ -56,6 +56,10 @@ ostream &operator<<(ostream &out, const MidiEvent &ev)
             out << "PgmChange: program(" << ev.num << ")\n"
             << "           channel(" << ev.channel << ")";
             break;
+
+        case M_CLOCK:
+            out << "M_CLOCK\n";
+            break;
     }
 
     return out;
@@ -99,11 +103,10 @@ void InMgr::flush(unsigned frameStart, unsigned frameStop)
         if(ev.time < (int)frameStart || ev.time > (int)frameStop) {
             //Back out of transaction
             work.post();
-            //printf("%d vs [%d..%d]\n",ev.time, frameStart, frameStop);
+            //~ printf("%lu vs [%d..%d]\n", ev.time, frameStart, frameStop);
             break;
         }
         queue.pop(ev);
-        //cout << ev << endl;
 
         switch(ev.type) {
             case M_NOTE:
@@ -142,6 +145,44 @@ void InMgr::flush(unsigned frameStart, unsigned frameStop)
 
             case M_PRESSURE:
                 master->polyphonicAftertouch(ev.channel, ev.num, ev.value);
+                break;
+            
+            case M_CLOCK: // needed to determine bpm
+                master->midiClock(ev.nanos);
+                break;
+            
+            case M_TC: // suited to determine reference time for calculating phase
+                master->midiTcSync(ev.nanos, ev.value);
+                break;
+
+            case M_START: // suited to determine reference time for calculating phase
+                printf("M_START\n");
+                if (!isPlaying) {
+                    master->midiSppSync(ev.nanos, 0);
+                    isPlaying = true;
+                }
+                break;
+
+            case M_CONTINUE: // suited to determine reference time for calculating phase
+                printf("M_CONTINUE\n");
+                if (!isPlaying) {
+                    //~ master->midiSppSync(ev.nanos, 0);
+                    isPlaying = true;
+                }
+                break;
+
+            case M_STOP: 
+                isPlaying = false;
+                printf("M_STOP\n");
+                break;
+
+            case M_TIME_SIG: // suited to determine reference time for calculating phase
+                master->setSignature(ev.num, ev.value);
+                break;
+
+            case M_SPP: // suited to determine reference time for calculating phase
+                printf("M_SPP\n");
+                master->midiSppSync(ev.nanos, ev.value);
                 break;
         }
     }

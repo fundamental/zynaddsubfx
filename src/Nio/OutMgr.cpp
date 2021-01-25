@@ -64,7 +64,7 @@ OutMgr::~OutMgr()
  * 6) Lets return those samples to the primary and secondary outputs
  * 7) Lets wait for another tick
  */
-const Stereo<float *> OutMgr::tick(unsigned int frameSize)
+const Stereo<float *> OutMgr::tick(unsigned int frameSize, unsigned long tstamp)
 {
     InMgr &midi = InMgr::getInstance();
     //SysEv->execute();
@@ -74,7 +74,8 @@ const Stereo<float *> OutMgr::tick(unsigned int frameSize)
         if(!midi.empty()) {
             midi.flush(i*synth.buffersize, (i+1)*synth.buffersize);
         }
-        master->AudioOut(outl, outr);
+        
+        master->AudioOut(outl, outr, tstamp);
         addSmps(outl, outr);
         i++;
     }
