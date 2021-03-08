@@ -189,7 +189,7 @@ class Master
         float vuoutpeakpartr[NUM_MIDI_PARTS];
         unsigned char fakepeakpart[NUM_MIDI_PARTS]; //this is used to compute the "peak" when the part is disabled
 
-        AbsTime  time;
+        AbsTime time;
         enum {
             T_SYNC_CLOCK,
             T_SYNC_START,
