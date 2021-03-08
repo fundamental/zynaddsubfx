@@ -25,11 +25,38 @@ using namespace rtosc;
 
 namespace zyn {
 
+static const float speedratios[20] = {0.0f, 8.0f, 7.0f, 6.0f, 5.0f, 4.0f, 3.0f, 2.0f, 1.75f, 1.5f, 1.25f, 1.0f, 0.75f, 0.5f, 1.0f/3.0f, 0.25f, 0.2f, 1.0f/6.0f, 1.0f/7.0f, 0.125f};
+
 #define rObject LFOParams
 #undef rChangeCb
 #define rChangeCb if (obj->time) { obj->last_update_timestamp = obj->time->time(); }
 #define rBegin [](const char *msg, rtosc::RtData &d) {
 #define rEnd }
+  
+    
+#define rCrossOption(name, crossname, setcode, ...) \
+  {STRINGIFY(name) "::i:c:S",rProp(parameter) rProp(enumerated) DOC(__VA_ARGS__), NULL, rCrossOptionCb(name, crossname, setcode)}
+  
+#define rCrossOptionCb(name, cross, setcode) rBOIL_BEGIN \
+    { \
+        if(!strcmp("i", args) || !strcmp("I", args)) { \
+            int var = rtosc_argument(msg, 0).i; \
+            rLIMIT(var, atoi) \
+            setcode; \
+            /* cross broadcast to speedratio port */ \
+            char part_loc[128]; \
+            strncpy(part_loc, data.loc, sizeof(part_loc)); \
+            part_loc[sizeof(part_loc) - 1] = '\0'; \
+            char *end = strrchr(part_loc, '/'); \
+            if(end) { \
+                strcpy(&end[1], STRINGIFY(cross)); \
+                data.broadcast(part_loc, "f", obj->cross); \
+            } \
+            rChangeCb; \
+        } \
+    } \
+    rBOIL_END
+
 static const rtosc::Ports _ports = {
     rSelf(LFOParams),
     rPaste,
@@ -93,8 +120,12 @@ static const rtosc::Ports _ports = {
      }},
     rToggle(Pcontinous, rShort("c"), rDefault(false),
             "Enable for global operation"),
-    rToggle(Psync, rShort("s"), rDefault(false),
-            "Enable for BPM sync"),
+    rCrossOption(ratiofixed, speedratio, obj->speedratio = speedratios[var], 
+        rShort("rat"), 
+        rOptions(off, 8, 7, 6, 5, 4, 3, 2, 7/4, 3/2, 5/4, 1/1, 7/8, 3/4, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8), 
+        rLinear(0,20), rDefault(off), "select fixed ratio for BPM sync"),
+    rParamF(speedratio, rShort("r"), rLinear(0.0f,8.0f), rDefault(0.0f),
+            "ratio for BPM sync"),
     rParamZyn(Pstretch, rShort("str"), rCentered, rDefault(64),
         "Note frequency stretch"),
 // these are currently not yet implemented and must be hidden therefore
@@ -159,7 +190,7 @@ LFOParams::LFOParams(float freq_,
                      char Prandomness_,
                      float Pdelay_,
                      char Pcontinous_,
-                     char Psync_,
+                     float speedratio_,
                      consumer_location_t loc,
                      const AbsTime *time_) : loc(loc),
                                              time(time_),
@@ -172,7 +203,7 @@ LFOParams::LFOParams(float freq_,
     Drandomness = Prandomness_;
     Ddelay      = Pdelay_;
     Dcontinous  = Pcontinous_;
-    Dsync       = Psync_;
+    Dspeedratio       = speedratio_;
 
     setup();
 }
@@ -184,7 +215,7 @@ LFOParams::LFOParams(consumer_location_t loc,
 
     auto init =
         [&](float freq_, char Pintensity_, char Pstartphase_, char Pcutoff_, char PLFOtype_,
-            char Prandomness_, float delay_, char Pcontinous_, char Psync_)
+            char Prandomness_, float delay_, char Pcontinous_, char speedratio_)
     {
         Dfreq       = freq_;
         Dintensity  = Pintensity_;
@@ -194,7 +225,7 @@ LFOParams::LFOParams(consumer_location_t loc,
         Drandomness = Prandomness_;
         Ddelay      = delay_;
         Dcontinous  = Pcontinous_;
-        Dsync       = Psync_;
+        Dspeedratio = speedratio_;
     };
 
     switch(loc)
@@ -224,7 +255,7 @@ void LFOParams::defaults()
     Prandomness = Drandomness;
     delay       = Ddelay;
     Pcontinous  = Dcontinous;
-    Psync       = Dsync;
+    speedratio       = Dspeedratio;
     Pfreqrand   = 0;
     Pstretch    = 64;
 }
@@ -242,7 +273,7 @@ void LFOParams::add2XML(XMLwrapper& xml)
     xml.addparreal("delay", delay);
     xml.addpar("stretch", Pstretch);
     xml.addparbool("continous", Pcontinous);
-    xml.addparbool("sync", Psync);
+    xml.addparreal("speedratio", speedratio);
 }
 
 void LFOParams::getfromXML(XMLwrapper& xml)
@@ -266,7 +297,7 @@ void LFOParams::getfromXML(XMLwrapper& xml)
     }
     Pstretch    = xml.getpar127("stretch", Pstretch);
     Pcontinous  = xml.getparbool("continous", Pcontinous);
-    Psync  = xml.getparbool("sync", Psync);
+    speedratio  = xml.getparreal("speedratio", speedratio);
 }
 
 #define COPY(y) this->y=x.y
@@ -281,7 +312,7 @@ void LFOParams::paste(LFOParams &x)
     COPY(Pfreqrand);
     COPY(delay);
     COPY(Pcontinous);
-    COPY(Psync);
+    COPY(speedratio);
     COPY(Pstretch);
 
     if ( time ) {
