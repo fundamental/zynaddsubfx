@@ -181,7 +181,7 @@ void InMgr::flush(unsigned frameStart, unsigned frameStop)
                 break;
 
             case M_SPP: // suited to determine reference time for calculating phase
-                printf("M_SPP\n");
+                printf("M_SPP: ev.nanos: %lu, ev.value: %d \n", ev.nanos, ev.value);
                 master->midiSppSync(ev.nanos, ev.value);
                 break;
         }

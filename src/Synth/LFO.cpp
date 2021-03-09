@@ -39,12 +39,10 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
     //max 2x/octave
     const float lfostretch = powf(basefreq / 440.0f, (stretch - 64.0f) / 63.0f);
     float lfofreq;
-    if (!lfopars.speedratio) {
+    if(!lfopars.speedratio) {
         lfofreq = lfopars.freq * lfostretch;   
     } else {
         lfofreq = (float(time.bpm)) / 60.0f * lfopars.speedratio;
-        // TBD: use midi clock phase
-        //~ phase = fmod(t.time() - t.tRef, 1.0f);
     }
     
     if(!lfopars.Pcontinous) {
@@ -54,11 +52,9 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
             phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f, 1.0f);
     }
     else {
-        const float tmp = fmod(t.time() * phaseInc, 1.0f);
+        const float tmp = fmod((lfopars.speedratio?(t.time()-t.tRef):t.time()) * phaseInc, 1.0f);
         phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f + tmp, 1.0f);
-        printf("fel: %d, sync\n", lfopars.fel);
     }
-    
     phaseInc = fabsf(lfofreq) * t.dt();
 
     //Limit the Frequency(or else...)
