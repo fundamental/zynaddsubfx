@@ -50,6 +50,7 @@ class AudioOut:public virtual Engine
         const SYNTH_T &synth;
         int samplerate;
         int bufferSize;
+        unsigned long tstampaudio;
 };
 
 }

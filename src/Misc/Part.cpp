@@ -32,6 +32,7 @@
 #include <cstring>
 #include <cassert>
 #include <ctime>
+#include <cmath>
 
 #include <rtosc/ports.h>
 #include <rtosc/port-sugar.h>
@@ -318,6 +319,7 @@ Part::Part(Allocator &alloc, const SYNTH_T &synth_, const AbsTime &time_,
 
     defaults();
     assert(partefx[0]);
+    
 }
 
 Part::Kit::Kit(void)
@@ -774,6 +776,8 @@ void Part::SetController(unsigned int type, note_t note, float value,
         break;
     }
 }
+
+
 
 /*
  * Release the sustained keys

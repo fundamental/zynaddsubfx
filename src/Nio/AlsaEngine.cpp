@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
+#include <chrono>
 #include <poll.h>
 
 #include "../Misc/Util.h"
@@ -38,6 +39,8 @@ AlsaEngine::AlsaEngine(const SYNTH_T &synth)
     midi.handle  = NULL;
     midi.alsaId  = -1;
     midi.pThread = 0;
+    
+    framecount = 0;
 }
 
 AlsaEngine::~AlsaEngine()
@@ -105,7 +108,8 @@ void *AlsaEngine::_MidiThread(void *arg)
 
 void *AlsaEngine::MidiThread(void)
 {
-    snd_seq_event_t *event;
+    snd_seq_event_t *event; 
+    //~ unsigned char     buf[3];
     MidiEvent ev = {};
     struct pollfd pfd[4 /* XXX 1 should be enough */];
     int error;
@@ -124,7 +128,7 @@ void *AlsaEngine::MidiThread(void)
             error = poll(pfd, error, 1000 /* ms */);
             if(error < 0 &&
                errno != EAGAIN && errno != EINTR)
-	        break;
+            break;
             continue;
         }
         //ensure ev is empty
@@ -132,9 +136,23 @@ void *AlsaEngine::MidiThread(void)
         ev.num     = 0;
         ev.value   = 0;
         ev.type    = 0;
+        ev.time    = 0;
+        
+        tmidi = (unsigned long)event->time.time.tv_sec * 1000000UL + (unsigned long)event->time.time.tv_nsec/1000UL;
+        
+        
+        ev.nanos = tmidi + tstamptrigger;
+        //~ ev.taudio = htstampaudio.tv_sec * 1000000000 + htstampaudio.tv_nsec; // constant
+        
+        printf("\nevent->type =  %d\n", event->type);
+        printf("tmidi + ttrigger %lu + %lu = (ev.nanos) %lu\n", tmidi, tstamptrigger, ev.nanos);
 
         if(!event)
             continue;
+            
+       //~ snd_midi_event_t* midiParser;
+        
+        //~ printf("event->type: %d\n", event->type);
         switch(event->type) {
             case SND_SEQ_EVENT_NOTEON:
                 ev.type    = M_NOTE;
@@ -200,7 +218,10 @@ void *AlsaEngine::MidiThread(void)
                 if(true)
                     cout << "Info, alsa midi port disconnected" << endl;
                 break;
-
+            case SND_SEQ_EVENT_SENSING: // midi device still there
+                break;
+                
+                
             case SND_SEQ_EVENT_SYSEX:   // system exclusive
                 for (unsigned int x = 0; x < event->data.ext.len; x += 3) {
                     uint8_t buf[3];
@@ -211,13 +232,34 @@ void *AlsaEngine::MidiThread(void)
                         memset(buf, 0, sizeof(buf));
                         memcpy(buf, (uint8_t *)event->data.ext.ptr + x, y);
                     }
-                    midiProcess(buf[0], buf[1], buf[2]);
+                    midiProcess(buf[0], buf[1], buf[2], ev.time, ev.nanos);
+                    
                 }
                 break;
-
-            case SND_SEQ_EVENT_SENSING: // midi device still there
+            case SND_SEQ_EVENT_QFRAME :   // Midi Timecode
+                midiProcess(0xf1, event->data.control.param, event->data.control.value, ev.time, ev.nanos);
+                //~ ev.type  = M_TC;
+                //~ ev.value = event->data.control.value;
+                //~ InMgr::getInstance().putEvent(ev);
                 break;
-
+            case SND_SEQ_EVENT_SONGPOS:   // Song Position Pointer
+                ev.type  = M_SPP;
+                ev.value = event->data.control.value;
+                InMgr::getInstance().putEvent(ev);
+                break;
+            case SND_SEQ_EVENT_CLOCK:   // Midi Clock
+                ev.type  = M_CLOCK;
+                InMgr::getInstance().putEvent(ev);
+                break;
+            case SND_SEQ_EVENT_START: /* M_START */
+                midiProcess(0xFA, event->data.control.param, event->data.control.value, ev.time, ev.nanos);
+                break;
+            case SND_SEQ_EVENT_CONTINUE: /* M_CONTINUE */
+                midiProcess(0xFB, event->data.control.param, event->data.control.value, ev.time, ev.nanos);
+                break;
+            case SND_SEQ_EVENT_STOP: /* M_STOP */
+                midiProcess(0xFC, event->data.control.param, event->data.control.value, ev.time, ev.nanos);
+                break;
             default:
                 if(true)
                     cout << "Info, other non-handled midi event, type: "
@@ -234,7 +276,7 @@ bool AlsaEngine::openMidi()
     if(getMidiEn())
         return true;
 
-    int alsaport;
+    //~ int alsaport, queue, client;
     midi.handle = NULL;
 
     if(snd_seq_open(&midi.handle, "default",
@@ -249,17 +291,55 @@ bool AlsaEngine::openMidi()
         clientname += "_" + os_pid_as_padded_string();
     snd_seq_set_client_name(midi.handle, clientname.c_str());
 
-    alsaport = snd_seq_create_simple_port(
-        midi.handle,
-        "ZynAddSubFX",
-        SND_SEQ_PORT_CAP_WRITE
-        | SND_SEQ_PORT_CAP_SUBS_WRITE,
-        SND_SEQ_PORT_TYPE_SYNTH);
-    if(alsaport < 0)
-        return false;
+
+	snd_seq_port_info_alloca(&midi.pinfo);
+	snd_seq_port_info_set_name(midi.pinfo, "Input");
+	snd_seq_port_info_set_type(midi.pinfo, SND_SEQ_PORT_TYPE_SYNTH);
+	snd_seq_port_info_set_capability(midi.pinfo, SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE);
+
+	/* Enable timestamping for events sent by external subscribers. */
+	snd_seq_port_info_set_timestamping(midi.pinfo, 1);
+	snd_seq_port_info_set_timestamp_real(midi.pinfo, 1);
+    int client, queue, port;
+    if ((client = snd_seq_client_id(midi.handle))<0) {
+		fprintf(stderr, "Cannot determine client number: %s\n", snd_strerror(client));
+		return false;
+	}
+	printf("Client ID = %i\n", client);
+	if ((queue = snd_seq_alloc_queue(midi.handle))<0) {
+		fprintf(stderr, "Cannot allocate queue: %s\n", snd_strerror(queue));
+		return false;
+	}
+    
+    port = snd_seq_port_info_get_port(midi.pinfo);
+    
+    snd_seq_port_subscribe_t* sub;
+	snd_seq_addr_t seq_addr;
+
+	snd_seq_port_subscribe_alloca (&sub);
+	seq_addr.client = client;
+	seq_addr.port = port;
+	snd_seq_port_subscribe_set_sender (sub, &seq_addr);
+	//~ seq_addr.client = client;
+	//~ seq_addr.port = port;
+	//~ snd_seq_port_subscribe_set_dest (sub, &seq_addr);
+
+	snd_seq_port_subscribe_set_time_update (sub, 1);
+	snd_seq_port_subscribe_set_queue (sub, queue);
+	snd_seq_port_subscribe_set_time_real (sub, 1);
+
+	if ((snd_seq_create_port(midi.handle, midi.pinfo)) < 0) 
+		return false;
 
     midi.exiting = false;
     pthread_attr_t attr;
+    
+	struct sched_param param; 
+	pthread_attr_init(&attr);
+	pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+	pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+	param.sched_priority = 83;
+	pthread_attr_setschedparam(&attr, &param); 
 
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -375,15 +455,86 @@ bool AlsaEngine::openAudio()
                 snd_strerror(rc));
         return false;
     }
+    
+    /* Allocate a hardware parameters object. */
+    snd_pcm_sw_params_alloca(&audio.swparams);
+    
+    rc = snd_pcm_sw_params_current(audio.handle, audio.swparams);
+    if( rc < 0 )
+    {
+        fprintf (stderr, "cannot initialize software parameters structure (%s)\n", snd_strerror(rc) );
+        return false;
+    }
+    
+    /* Enable Timestamping */
+    rc = snd_pcm_sw_params_set_tstamp_mode(audio.handle, audio.swparams, SND_PCM_TSTAMP_ENABLE);
+    if (rc < 0) {
+        fprintf(stderr, "Unable to set timestamp mode: %s\n", snd_strerror(rc));
+        return false;
+    }
+    /* Set Timestamp type to Wallclock */
+    rc = snd_pcm_sw_params_set_tstamp_type(audio.handle, audio.swparams, SND_PCM_TSTAMP_TYPE_GETTIMEOFDAY);
+    if (rc < 0) {
+        printf("Unable to set tstamp type : %s\n", snd_strerror(rc));
+        return false;
+    }
+    
+    /* Write the parameters to the driver */
+    rc = snd_pcm_sw_params( audio.handle, audio.swparams );
+        if(rc < 0) {
+        fprintf(stderr,
+                "unable to set sw parameters: %s\n",
+                snd_strerror(rc));
+        return false;
+    }
+    
+    snd_pcm_hw_params_t *hwparams_c;
+    snd_pcm_hw_params_alloca(&hwparams_c);
+		/* get the current hwparams */
+		rc = snd_pcm_hw_params_current(audio.handle, hwparams_c);
+		if (rc < 0) {
+			printf("Unable to determine current hwparams_c: %s\n", snd_strerror(rc));
+			return false;
+		}
 
-    //snd_pcm_hw_params_get_period_size(audio.params, &audio.frames, NULL);
-    //snd_pcm_hw_params_get_period_time(audio.params, &val, NULL);
-
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 0))
+			printf("Capture supports audio compat timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 1))
+			printf("Capture supports audio default timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 2))
+			printf("Capture supports audio link timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 3))
+			printf("Capture supports audio link absolute timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 4))
+			printf("Capture supports audio link estimated timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_ts_type(hwparams_c, 5))
+			printf("Capture supports audio link synchronized timestamps\n");
+		if (snd_pcm_hw_params_supports_audio_wallclock_ts(hwparams_c))
+			printf("Capture supports wallclock timestamps\n");
+            
+    snd_pcm_status_alloca(&audio.status);
+        audio_tstamp_config.type_requested = 4;
+        audio_tstamp_config.report_delay = 1;
+        
+    snd_pcm_status_set_audio_htstamp_config(audio.status, &audio_tstamp_config);
+        if ((rc = snd_pcm_status(audio.handle, audio.status)) < 0) {
+            printf("Stream status error: %s\n", snd_strerror(rc));
+            exit(0);
+        }
+    snd_pcm_status_get_trigger_htstamp(audio.status, &htstamptrigger);
+    tstamptrigger = htstamptrigger.tv_sec * 1000000ULL + htstamptrigger.tv_nsec/1000ULL;
+    
+    
+    printf("htstamptrigger.tv_sec: %lu tv_nsec: %lu \n", htstamptrigger.tv_sec, htstamptrigger.tv_nsec);
+            
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+       
     pthread_create(&audio.pThread, &attr, _AudioThread, this);
+    
+    framecount = 0;
     return true;
 }
 
@@ -404,9 +555,22 @@ void AlsaEngine::stopAudio()
 void *AlsaEngine::processAudio()
 {
     while(audio.handle) {
-        audio.buffer = interleave(getNext());
+        int rc;
         snd_pcm_t *handle = audio.handle;
-        int rc = snd_pcm_writei(handle, audio.buffer, synth.buffersize);
+        
+        
+        
+        
+        
+        snd_pcm_status_get_htstamp(audio.status, &htstampaudio);
+        
+        // TBD: tstamp needs to be known in Master
+        tstampaudio = htstampaudio.tv_sec * 1000000ULL + htstampaudio.tv_nsec/1000ULL;
+        
+        
+        audio.buffer = interleave(getNext());
+        
+        rc = snd_pcm_writei(handle, audio.buffer, synth.buffersize);
         if(rc == -EPIPE) {
             /* EPIPE means underrun */
             cerr << "underrun occurred" << endl;
@@ -419,6 +583,9 @@ void *AlsaEngine::processAudio()
             if(rc < 0)
              throw "Could not recover ALSA connection";
         }
+        
+
+        framecount+=synth.buffersize;
     }
     return NULL;
 }

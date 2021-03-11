@@ -28,6 +28,7 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
     waveShape(lfopars.PLFOtype),
     deterministic(!lfopars.Pfreqrand),
     dt_(t.dt()),
+    time(t),
     lfopars_(lfopars), basefreq_(basefreq),
     watchOut(m, watch_prefix, "out")
 {
@@ -37,10 +38,13 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
 
     //max 2x/octave
     const float lfostretch = powf(basefreq / 440.0f, (stretch - 64.0f) / 63.0f);
-
-    const float lfofreq = lfopars.freq * lfostretch;
-    phaseInc = fabsf(lfofreq) * t.dt();
-
+    float lfofreq;
+    if(!lfopars.speedratio) {
+        lfofreq = lfopars.freq * lfostretch;   
+    } else {
+        lfofreq = (float(time.bpm)) / 60.0f * lfopars.speedratio;
+    }
+    
     if(!lfopars.Pcontinous) {
         if(lfopars.Pstartphase == 0)
             phase = RND;
@@ -48,9 +52,10 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
             phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f, 1.0f);
     }
     else {
-        const float tmp = fmod(t.time() * phaseInc, 1.0f);
+        const float tmp = fmod((lfopars.speedratio?(t.time()-t.tRef):t.time()) * phaseInc, 1.0f);
         phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f + tmp, 1.0f);
     }
+    phaseInc = fabsf(lfofreq) * t.dt();
 
     //Limit the Frequency(or else...)
     if(phaseInc > 0.49999999f)
@@ -167,7 +172,13 @@ float LFO::lfoout()
         const float lfostretch = powf(basefreq_ / 440.0f, (stretch - 64.0f) / 63.0f);
 
         float lfofreq = lfopars_.freq * lfostretch;
-
+        if (!lfopars_.speedratio) {
+            lfofreq = lfopars_.freq * lfostretch;   
+        } else {
+            lfofreq = (float(time.bpm)) / 60.0f * lfopars_.speedratio;
+            // TBD: use midi clock phase
+            //~ phase = fmod(t.time() - t.tRef, 1.0f);
+        }
         phaseInc = fabsf(lfofreq) * dt_;
 
         switch(lfopars_.fel) {

@@ -47,7 +47,7 @@ void AudioOut::setBufferSize(int _bufferSize)
 
 const Stereo<float *> AudioOut::getNext()
 {
-    return OutMgr::getInstance().tick(bufferSize);
+    return OutMgr::getInstance().tick(bufferSize, tstampaudio);
 }
 
 }

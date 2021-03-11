@@ -43,16 +43,28 @@ uint8_t MidiIn::midiSysEx(unsigned char data)
 
 void MidiIn::midiProcess(unsigned char head,
                          unsigned char num,
-                         unsigned char value)
+                         unsigned char value, 
+                         unsigned long time, 
+                         unsigned long nanos,
+                         unsigned long nframes)
 {
-    MidiEvent     ev;
-    unsigned char chan = head & 0x0f;
 
+    unsigned char chan = head & 0x0f;
+    unsigned char type = head & 0xf0;
+    
+    MidiEvent ev;
+    ev.channel = 0;
+    ev.type = 0;
+    ev.num = 0;
+    ev.value = 0;
+    ev.time = time;
+    ev.nanos = nanos;
+    //~ printf("midiProcess(h:%d, n:%d, v:%d, m:%lu)\n", head, num, value, nanos);
     /* SYSEX handling */
     if (head == 0xF0 || sysex_offset != 0) {
         uint8_t status = 0;
 
-        status |= midiSysEx(head);
+        status |= midiSysEx(type);
         status |= midiSysEx(num);
         status |= midiSysEx(value);
 
@@ -99,12 +111,23 @@ void MidiIn::midiProcess(unsigned char head,
                 }
                 InMgr::getInstance().putEvent(ev);
             }
+            
+            if (sysex_offset >= 7 &&
+                sysex_data[1] == 0x7F &&
+                sysex_data[3] == 0x03) {
+                    ev.type = M_TIME_SIG;
+                    ev.num = sysex_data[5]; // numerator
+                    ev.value = sysex_data[6]; // denominator
+                    InMgr::getInstance().putEvent(ev);
+                }
+            
             return; /* message complete */
         } else {
             return; /* wait for more data */
         }
     }
-    switch(head & 0xf0) {
+    //
+    switch(type) {
         case 0x80: //Note Off
             ev.type    = M_NOTE;
             ev.channel = chan;
@@ -147,7 +170,96 @@ void MidiIn::midiProcess(unsigned char head,
             ev.value   = (num + value * (int) 128) - 8192;
             InMgr::getInstance().putEvent(ev);
             break;
+        case 0x79: // reset to power-on state
+            ev.type    = M_CONTROLLER;
+            ev.channel = chan;
+            ev.num     = C_resetallcontrollers;
+            ev.value   = 0;
+            InMgr::getInstance().putEvent(ev);
+                break;
     }
+    
+    /* MTC handling */
+    int subtype = (value >> 4) & 0xf;
+    int val  = (value & 0xf);
+    ev.channel = 0;
+
+    switch(head) {
+        case 0xF1: /* M_TC - MIDI Time Code Quarter Frame */
+            switch (subtype)
+            {
+            case 0:
+            {
+                frameLo = val;
+                break;
+            }
+            case 1:
+            {
+                frame = frameLo + (val * 16);
+                break;
+            }
+            case 2:
+            {
+                secondLo = val;
+                break;
+            }
+            case 3:
+            {
+                second = secondLo + (val * 16);
+                break;
+            }
+            case 4:
+            {
+                minuteLo = val;
+                break;
+            }
+            case 5:
+            {
+                minute = minuteLo + (val * 16);
+                break;
+            }
+            case 6:
+            {
+                hourLo = (val & 31);
+                break;
+            }
+            case 7:
+            {
+                hour = hourLo + ((val * 16) & 31);
+                if(frame==23) {
+                    ev.type  = M_TC;
+                    ev.num = 0;
+                    ev.value = second+60*minute+3600*hour;
+                    InMgr::getInstance().putEvent(ev);
+                }
+                break;
+            }
+            }
+            break;
+
+        case 0xF2: /* M_SPP - Song Position Pointer*/
+            ev.type  = M_SPP;
+            ev.value = num + 128 * value;
+            InMgr::getInstance().putEvent(ev);
+            break;
+        case 0xF8: /* M_CLOCK */
+            ev.type  = M_CLOCK;
+            InMgr::getInstance().putEvent(ev);
+            break;
+        case 0xFA: /* M_START */
+            ev.type  = M_START;
+            InMgr::getInstance().putEvent(ev);
+            break;
+        case 0xFB: /* M_CONTINUE */
+            ev.type  = M_CONTINUE;
+            InMgr::getInstance().putEvent(ev);
+            break;
+        case 0xFC: /* M_STOP */
+            ev.type  = M_STOP;
+            InMgr::getInstance().putEvent(ev);
+            break;
+    }
+
 }
 
 }

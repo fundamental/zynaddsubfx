@@ -24,6 +24,12 @@
 #include "OutMgr.h"
 #include "../Misc/Stereo.h"
 
+#include <jack/midiport.h>
+#ifdef JACK_HAS_METADATA_API
+# include <jack/metadata.h>
+#endif // JACK_HAS_METADATA_API
+#include "jack_osc.h"
+
 namespace zyn {
 
 class AlsaEngine:public AudioOut, MidiIn
@@ -57,6 +63,7 @@ class AlsaEngine:public AudioOut, MidiIn
         struct {
             std::string device;
             snd_seq_t  *handle;
+            snd_seq_port_info_t  *pinfo;
             int alsaId;
             bool exiting;
             pthread_t pThread;
@@ -65,15 +72,31 @@ class AlsaEngine:public AudioOut, MidiIn
         struct {
             snd_pcm_t *handle;
             snd_pcm_hw_params_t *params;
-            unsigned int      sampleRate;
-            snd_pcm_uframes_t frames;
-            unsigned int      periods;
+            snd_pcm_sw_params_t *swparams;
+            snd_pcm_status_t    *status;
+            snd_pcm_t           *pcm;
+            unsigned int        sampleRate;
+            snd_pcm_uframes_t   frames;
+            unsigned int        periods;
             short    *buffer;
             pthread_t pThread;
             float peaks[1];
         } audio;
 
         void *processAudio();
+        
+        unsigned int bufferindex = 0;
+        unsigned int sampleoffset = 0;
+        unsigned long framecount = 0;
+
+        snd_htimestamp_t htstampnow; 
+        snd_htimestamp_t htstamptrigger; 
+        snd_htimestamp_t htstampaudio;
+
+        unsigned long tstamptrigger;
+        unsigned long ttrigger, tmidi;
+        snd_pcm_audio_tstamp_config_t audio_tstamp_config;
+
 };
 
 }

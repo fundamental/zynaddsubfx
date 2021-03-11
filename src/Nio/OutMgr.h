@@ -29,7 +29,7 @@ class OutMgr
         ~OutMgr();
 
         /**Execute a tick*/
-        const Stereo<float *> tick(unsigned int frameSize) REALTIME;
+        const Stereo<float *> tick(unsigned int frameSize, unsigned long tstamp) REALTIME;
 
         /**Request a new set of samples
          * @param n number of requested samples (defaults to 1)
@@ -77,6 +77,8 @@ class OutMgr
 
         int stales;
         const SYNTH_T &synth;
+        
+        unsigned long tstamp;
 };
 
 }

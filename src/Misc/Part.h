@@ -21,6 +21,7 @@
 #include "../Containers/NotePool.h"
 
 #include <functional>
+#include <sys/time.h>
 
 namespace zyn {
 
@@ -70,6 +71,9 @@ class Part
         void SetController(unsigned int type, int par) REALTIME;
         void SetController(unsigned int type, note_t, float value,
                            int masterkeyshift) REALTIME;
+        //~ void SetBpm(int bpm, long phase = 0);
+        
+        
         void ReleaseSustainedKeys() REALTIME; //this is called when the sustain pedal is released
         void ReleaseAllKeys() REALTIME; //this is called on AllNotesOff controller
 
@@ -222,6 +226,9 @@ class Part
         const SYNTH_T &synth;
         const AbsTime &time;
         const int &gzip_compression, &interpolation;
+        
+        long phase=0;
+
 };
 
 }

@@ -108,6 +108,21 @@ class Master
         void polyphonicAftertouch(char chan, note_t note, char velocity);
         void setController(char chan, int type, int par);
         void setController(char chan, int type, note_t note, float value);
+        void midiClock(unsigned long nanos);
+        void midiTcSync(unsigned long nanos, int seconds);
+        void midiSppSync(unsigned long nanos, int beats);
+        void setSignature(int numerator, int denominator);
+        
+        // for bpm tracking
+        int midiClockCounter, counterSppSync, newCounter, beatsSppSync; // clock tick counter
+        long nanos, nanosLastTick, nanosSppSync; // number of sample the clock tick belongs to and its history value
+        double dTime; // time between current and last clock tick
+        double dtFiltered; // lp filtered dTime
+        float outliersDt, outliersPhase; // outlier counter to speedup tempo change
+        float phaseFiltered; // lp filtered phase offset of incoming clock pulses
+        long bpm, oldbpm, newbpm, phase; // result
+        long referenceTime;
+        long tstamp;
         //void NRPN...
 
 
@@ -123,7 +138,7 @@ class Master
                     Master* master_from_mw = nullptr);
 
         /**Audio Output*/
-        bool AudioOut(float *outl, float *outr) REALTIME;
+        bool AudioOut(float *outl, float *outr, unsigned long tstamp=0 ) REALTIME;
         /**Audio Output (for callback mode).
          * This allows the program to be controlled by an external program*/
         void GetAudioOutSamples(size_t nsamples,
@@ -174,7 +189,13 @@ class Master
         float vuoutpeakpartr[NUM_MIDI_PARTS];
         unsigned char fakepeakpart[NUM_MIDI_PARTS]; //this is used to compute the "peak" when the part is disabled
 
-        AbsTime  time;
+        AbsTime time;
+        enum {
+            T_SYNC_CLOCK,
+            T_SYNC_START,
+            T_SYNC_MTC,
+            T_SYNC_SPP
+        };
         Controller ctl;
         bool       swaplr; //if L and R are swapped
 

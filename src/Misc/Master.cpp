@@ -477,7 +477,6 @@ static const Ports master_ports = {
             SNIP;
             sysefsendto.dispatch(msg, d);
         }},
-
     {"noteOn:iii:iiif", rDoc("Noteon Event"), 0,
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
@@ -497,11 +496,18 @@ static const Ports master_ports = {
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
             M->setController(rtosc_argument(m,0).i,rtosc_argument(m,1).i,rtosc_argument(m,2).i);}},
-
     {"setController:iii", rDoc("MIDI CC Event"), 0,
         [](const char *m,RtData &d){
             Master *M =  (Master*)d.obj;
             M->setController(rtosc_argument(m,0).i,rtosc_argument(m,1).i,rtosc_argument(m,2).i);}},
+    {"bpm::i", rProp(parameter) rDefault(120) rShort("BPM") rDoc("Tempo / Beats per minute") rLinear(40, 200) rMap(unit, bpm), 0,
+        rBegin;
+        if(!strcmp("i",rtosc_argument_string(msg))) {
+            m->time.bpm = rtosc_argument(msg, 0).i;
+            d.broadcast(d.loc, "i", m->time.bpm);
+        } else
+            d.reply(d.loc, "i", m->time.bpm);
+        rEnd},
     {"Panic:", rDoc("Stop all sound"), 0,
         [](const char *, RtData &d) {
             Master &M =  *(Master*)d.obj;
@@ -753,6 +759,9 @@ Master::Master(const SYNTH_T &synth_, Config* config)
 {
     bToU = NULL;
     uToB = NULL;
+    
+    // set default tempo
+    time.bpm = 120;
 
     //Setup MIDI Learn
     automate.set_ports(master_ports);
@@ -808,6 +817,10 @@ Master::Master(const SYNTH_T &synth_, Config* config)
 
     mastercb = 0;
     mastercb_ptr = 0;
+    
+    dtFiltered = 0.0f;
+    phaseFiltered = 0.0f;
+    outliersDt = 0;
 }
 
 bool Master::applyOscEvent(const char *msg, float *outl, float *outr,
@@ -825,7 +838,7 @@ bool Master::applyOscEvent(const char *msg, float *outl, float *outr,
          */
 
         if(!offline)
-            new_master->AudioOut(outl, outr);
+            new_master->AudioOut(outl, outr, 0);
         if(nio)
             Nio::masterSwap(new_master);
         if (this_master->hasMasterCb()) {
@@ -936,6 +949,7 @@ void Master::defaults()
 void Master::noteOn(char chan, note_t note, char velocity, float note_log2_freq)
 {
     if(velocity) {
+        //~ printf("Master::noteOn chan = %d  note = %d  velocity = %d \n", chan, note, velocity);
         for(int npart = 0; npart < NUM_MIDI_PARTS; ++npart) {
             if(chan == part[npart]->Prcvchn) {
                 fakepeakpart[npart] = velocity * 2;
@@ -1025,6 +1039,114 @@ void Master::setController(char chan, int type, note_t note, float value)
     for(int npart = 0; npart < NUM_MIDI_PARTS; ++npart)
         if((chan == part[npart]->Prcvchn) && (part[npart]->Penabled != 0))
             part[npart]->SetController(type, note, value, keyshift);
+}
+
+/*
+ * Midi Sync
+ */
+void Master::midiClock(unsigned long nanos) {
+    
+    ++midiClockCounter;
+    
+    // detect down beat
+    // if last tick was before spp message, this is a down beat
+    if (nanosLastTick < nanosSppSync) {
+        time.tRef = nanos - ((float)beatsSppSync/4.0f) / ((float)bpm / 60.0f)*1000000000;
+        printf("down beat: nanos = %lu  beatsSppSync = %d   bpm = %lu\n", nanos, beatsSppSync, bpm);
+        printf("   nanosLastTick = %lu\n ", nanosLastTick);
+        printf("  nanosSppSync  = %lu\n ", nanosSppSync);
+        printf("  time.tRef = %lu\n ", time.tRef);
+        printf("time.tStamp = %lu\n", time.tStamp);
+        
+    }
+    
+    dTime = (double)(nanos - nanosLastTick);
+    // lp filter dTime
+    double gain = 10.0 + (14.0 * (40000.0/dTime));
+    if(fabs((dTime)-dtFiltered) < dtFiltered*0.2) {
+        dtFiltered *= (gain-1.0)/gain; //
+        dtFiltered += dTime/gain;
+        if (outliersDt>=0.1f) outliersDt -= 0.1f;
+    } else {
+        //leave out outliers but reset filter if too much (->tempo change)
+        if (++outliersDt > 2.0f)
+        {
+            dtFiltered = dTime;
+            outliersDt = 0.0f;
+        }
+    }
+    // round to integer bpm
+    bpm = (int) round(2500000000.0/dtFiltered);
+
+    // clalculate theroretical tick interval
+    float tickInterval = 60.0f  * synth.samplerate / (bpm * 24.0f);
+    // theoretical number of ticks until now
+    float ticks = (nanos - referenceTime) / tickInterval;
+    // phase = samples since theoretical last tick position
+    float phaseRaw = nanos - (floor(ticks)*tickInterval);
+
+    // lp filter phase
+    if((fabs(phaseRaw-phase) < phaseFiltered*0.1f) && !std::isnan(phaseFiltered)) {
+        phaseFiltered *= 47.0f/48.0f;
+        phaseFiltered += phaseRaw/48.0f;
+        outliersPhase -= 0.01f;
+    } else {
+        if (++outliersPhase > 2.0f)
+        {
+            phaseFiltered = phaseRaw;
+            outliersPhase = 0.0f;
+        }
+    }
+    phase = (int) roundf(phaseFiltered);
+    nanosLastTick = nanos;
+    
+    if(oldbpm != bpm) {
+        if(!newCounter) 
+            newbpm = bpm;
+        if(++newCounter > 24) {
+            oldbpm = bpm;
+            newCounter = 0;
+            time.bpm = bpm;
+        }
+    }
+
+    if(midiClockCounter%24==0) { // 24 clock ticks = 1 quarter note length
+        //~ printf("nanos = %lu \n", nanos);
+        //~ printf("dTime = %f \n", dTime); 
+        //~ printf("gain = %f -> ", gain); 
+        
+        //~ printf("dtFiltered = %f   dTime-dtFiltered = %f (outliers = %f)\n", dtFiltered, fabs(((float)dTime)-dtFiltered), outliersDt);
+        //~ printf("tickInterval = %f -> ", tickInterval); 
+        //~ printf("(ticks) = %f   phaseRaw = %f   phaseFiltered = %f\n", floor(ticks), phaseRaw, phaseFiltered);
+        //~ printf("bpm = %lu  phase = %lu\n", bpm, phase);
+        printf("bpmRaw = %f \n", 2506000000.0/dtFiltered);
+    }
+}
+
+void Master::midiTcSync(unsigned long nanos, int seconds) {
+    
+    // set referenceTime to sample index of TC 00h:00m:00s
+    unsigned long refTimeNew = nanos - ((long)seconds * 1000000000);
+    // but only change something if difference is > 0.1s to filter out jitter
+    if (abs(((long)refTimeNew - (long)referenceTime)) > 100000000) 
+        referenceTime = refTimeNew;
+    //~ time.tRef = (referenceTime - time.time)
+    printf("MidiTcSync - referenceTime = %lu\n", referenceTime);
+    printf("MidiTcSync - time.time = %lu\n", time.time());
+}
+
+void Master::midiSppSync(unsigned long nanos, int beats) {
+    // set referenceTime to sample index of Song Position 00m:00s
+    //~ float seconds = ((float)beats/4.0f) / ((float)bpm / 60.0f); // beats/4 = quarter notes, bpm/60 = qarter notes per second 60/4=15
+    // the dependency on bpm is quite bad, because bpn need time to get a lock.
+    nanosSppSync = nanos;
+    beatsSppSync = beats;
+    counterSppSync = midiClockCounter;
+    printf("MidiSppSync\n beatsSppSync = %d  nanosSppSync = %lu\n\n", beats, nanos);
+}
+
+void Master::setSignature(int numerator, int denominator) {
+    
 }
 
 void Master::vuUpdate(const float *outr, const float *outl)
@@ -1215,8 +1337,9 @@ bool Master::runOSC(float *outl, float *outr, bool offline,
 /*
  * Master audio out (the final sound)
  */
-bool Master::AudioOut(float *outr, float *outl)
+bool Master::AudioOut(float *outr, float *outl, unsigned long tstamp_)
 {
+    time.tStamp = tstamp_;
     //Danger Limits
     if(memory->lowMemory(2,1024*1024))
         printf("QUITE LOW MEMORY IN THE RT POOL BE PREPARED FOR WEIRD BEHAVIOR!!\n");
@@ -1444,7 +1567,7 @@ void Master::GetAudioOutSamples(size_t nsamples,
             nsamples -= smps;
 
             //generate samples
-            if (! AudioOut(bufl, bufr))
+            if (! AudioOut(bufl, bufr, 0))
                 return;
 
             off  = 0;
