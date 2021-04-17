@@ -24,9 +24,11 @@
 #include "../Synth/OscilGen.h"
 #include "../Synth/Resonance.h"
 #include "FilterParams.h"
+#include "WaveTable.h"
 
 #include <rtosc/ports.h>
 #include <rtosc/port-sugar.h>
+#include <rtosc/thread-link.h>
 
 namespace zyn {
 
@@ -38,27 +40,6 @@ using rtosc::RtData;
 #undef rChangeCb
 #define rChangeCb if (obj->time) { obj->last_update_timestamp = obj->time->time(); }
 static const Ports voicePorts = {
-    //Send Messages To Oscillator Realtime Table
-    {"OscilSmp/", rDoc("Primary Oscillator"),
-        &OscilGen::ports,
-        rBOIL_BEGIN
-            if(obj->OscilGn == NULL) return;
-        data.obj = obj->OscilGn;
-        SNIP
-            OscilGen::realtime_ports.dispatch(msg, data);
-        if(data.matches == 0)
-            data.forward();
-        rBOIL_END},
-    {"FMSmp/", rDoc("Modulating Oscillator"),
-        &OscilGen::ports,
-        rBOIL_BEGIN
-            if(obj->FmGn == NULL) return;
-        data.obj = obj->FmGn;
-        SNIP
-            OscilGen::realtime_ports.dispatch(msg, data);
-        if(data.matches == 0)
-            data.forward();
-        rBOIL_END},
     rRecurp(FreqLfo, "Frequency LFO"),
     rRecurp(AmpLfo, "Amplitude LFO"),
     rRecurp(FilterLfo, "Filter LFO"),
@@ -319,6 +300,219 @@ static const Ports voicePorts = {
             rObject *obj = (rObject *)d.obj;
             d.reply(d.loc, "f", obj->getUnisonFrequencySpreadCents());
         }},
+
+    // Wavetable stuff
+    {"wavetable-params-changed:Ti:Fi",
+        rDoc("retrieve realtime params for wavetable computation"),
+        nullptr,
+        [](const char *msg, RtData &d)
+        {
+            rObject *obj = (rObject *)d.obj;
+            if(obj->waveTables)
+            {
+                bool isFmSmp = rtosc_argument(msg, 0).T;
+                WaveTable* const wt = isFmSmp ? obj->tableFm : obj->table;
+                int param_change_time = rtosc_argument(msg, 1).i;
+#ifdef DBG_WAVETABLES
+                printf("WT: AD received /wavetable-params-changed (timestamp %d)...\n", param_change_time);
+                printf("WT: AD WT %p requesting (max) new 2D Tensors (reason: params changed)...\n",
+                       wt);
+#endif
+                // give MW all it needs to generate the new table
+                d.reply("/request-wavetable", isFmSmp ? "sTii" : "sFii",
+                        // path to this voice (T+F give the OscilGen of this voice)
+                        d.loc,
+                        // tensor relevant parameter change time
+                        param_change_time,
+                        // wavetable parameters (currently, only Presonance)
+                        isFmSmp ? 0 : (int)obj->Presonance);
+                // don't mark the whole ringbuffer (-1) as "write requested"
+                // because the current Tensor3 will be swapped before it will
+                // be refilled
+                //wt->dump_rb();
+                // WT is outdated until MW has returned all data for "param_change_time"
+                wt->set_outdated(param_change_time);
+            }
+            else
+            {
+                // MiddleWare will just wait patiently for the wavetable params,
+                // but we won't send them, because we don't need the tables.
+                // MiddleWare will just consider the tables as outdated, which
+                // is OK because they are not used.
+            }
+        }
+    },
+    {"set-wavetable:Tb:Fb",
+        rDoc("swap passed tensor3 with current tensor"), NULL,
+        [](const char *msg, RtData &d)
+        {
+            rObject *obj = (rObject *)d.obj;
+            bool isFmSmp = rtosc_argument(msg, 0).T;
+            WaveTable* unused = *(WaveTable**)rtosc_argument(msg, 1).b.data;
+            WaveTable* next = isFmSmp ? obj->nextTableFm : obj->nextTable;
+
+#ifdef DBG_WAVETABLES
+            {
+                Shape3 s = unused->debug_get_shape();
+                printf("WT: AD %s swapping tensor. New tensor dim: %d %d %d\n",
+                    (isFmSmp ? "FM" : "not-FM"),
+                    (int)s.dim[0], (int)s.dim[1], (int)s.dim[2]);
+            }
+#endif
+
+            // swap the new unused tensor with wt's "to-be-filled" tensor
+            next->swapWith(*unused);
+            // mark the whole ringbuffer (-1) as "write requested"
+            for(unsigned f = 0; f < (unsigned)next->size_freqs(); ++f)
+                next->inc_write_pos_semantics(f, next->write_space_semantics(f));
+            //next->dump_rb(0);
+
+            // recycle the whole old Tensor3
+            // this will also free the contained sub-tensors
+            d.reply("/free", "sb", "WaveTable", sizeof(WaveTable*), &unused);
+        }},
+    {"set-waves:Tiib:Fiib:Tiiib:Fiiib",
+        rDoc("inform voice to update oscillator table"), NULL,
+        [](const char *msg, RtData &d)
+        {
+            // take the passed waves
+            rObject *obj = (rObject *)d.obj;
+
+            bool isFmSmp = rtosc_argument(msg, 0).T;
+            int paramChangeTime = rtosc_argument(msg, 1).i;
+            bool fromParamChange = !!paramChangeTime;
+            std::size_t freq_idx = (std::size_t)rtosc_argument(msg, 2).i;
+            auto all_semantics = []{ return std::numeric_limits<std::size_t>::max(); };
+            std::size_t sem_idx; // optional
+            Tensor1<WaveTable::float32>* waves1;
+            Tensor2<WaveTable::float32>* waves2;
+            bool fillNext;
+            if(rtosc_type(msg, 3) == 'i')
+            {
+                int sem_idx_int = rtosc_argument(msg, 3).i;
+                assert(sem_idx_int >= 0);
+                sem_idx = (tensor_size_t)sem_idx_int;
+                assert(sem_idx != all_semantics());
+                waves1 = *(Tensor1<WaveTable::float32>**)rtosc_argument(msg, 4).b.data;
+                waves2 = nullptr;
+                // if single semantic is specified ('i'), this just updates one
+                // element in the current table
+                fillNext = false;
+            } else {
+                sem_idx = all_semantics();
+                waves1 = nullptr;
+                waves2 = *(Tensor2<WaveTable::float32>**)rtosc_argument(msg, 3).b.data;
+                // if all semantics are selected
+                // (no 'i'), this updates the "next" table
+                fillNext = true;
+            }
+            WaveTable* const wt =
+                fillNext
+                ? (isFmSmp ? obj->nextTableFm : obj->nextTable)
+                : (isFmSmp ? obj->tableFm : obj->table);
+            WaveTable* const current = (isFmSmp ? obj->tableFm : obj->table);
+
+#ifdef DBG_WAVETABLES
+            printf("WT: AD %s incoming timestamp %d (req,cur: %d/%d) (param change? %s, correct timestamp? %s): %p (%s), s %d, f %d...\n",
+                   (isFmSmp ? "FM" : "not-FM"),
+                   paramChangeTime,
+                   current->debug_get_timestamp_requested(), current->debug_get_timestamp_current(),
+                   fromParamChange ? "yes" : "no", current->is_correct_timestamp(paramChangeTime) ? "yes" : "no",
+                   (sem_idx == all_semantics()) ? (void*)waves2 : (void*)waves1, (sem_idx == all_semantics()) ? "Tensor2" : "Tensor1",
+                   (int)sem_idx, (int)freq_idx);
+#endif
+         // ignore outdated param changes, allow the rest:
+            if(!fromParamChange || current->is_correct_timestamp(paramChangeTime))
+            {
+                if(// no write position => fill all semantics at this frequency
+                   (sem_idx == all_semantics() && wt->write_pos_delayed_semantics(freq_idx) == 0) ||
+                   // write position just matches input
+                   wt->write_pos_delayed_semantics(freq_idx) == sem_idx)
+                {
+#ifdef DBG_WAVETABLES
+                    wt->dump_rb(freq_idx);
+                    printf("WS delayed: %d (freq %d), %d\n", (int)wt->write_space_delayed_semantics(freq_idx), (int)freq_idx, fromParamChange);
+#endif
+                    assert(wt->write_space_delayed_semantics(freq_idx) > 0);
+
+                    // the received Tensor2 may have different size than ours,
+                    // so take what we need, bit by bit
+                    if(sem_idx == all_semantics())
+                    {
+                        std::size_t nwaves = waves2->size();
+                        assert(nwaves <= wt->write_space_delayed_semantics(freq_idx));
+                        for(std::size_t sem_idx = 0; sem_idx < nwaves; ++sem_idx)
+                        {
+                            Tensor1<WaveTable::float32>& unusedWave = (*waves2)[sem_idx];
+                            wt->swapDataAt(sem_idx, freq_idx, unusedWave);
+                        }
+                        wt->inc_write_pos_delayed_semantics(freq_idx, nwaves);
+                    } else {
+                        Tensor1<WaveTable::float32>& unusedWave = (*waves1);
+                        wt->swapDataAt(sem_idx, freq_idx, unusedWave);
+                        wt->inc_write_pos_delayed_semantics(freq_idx, 1);
+                    }
+
+                    // recycle the packaging
+                    // this will also free the contained Tensor1 (which are useless after the swap)
+                    if(sem_idx == all_semantics())
+                        d.reply("/free", "sb", "Tensor2<WaveTable::float32>", sizeof(Tensor2<WaveTable::float32>*), &waves2);
+                    else
+                        d.reply("/free", "sb", "Tensor1<WaveTable::float32>", sizeof(Tensor1<WaveTable::float32>*), &waves1);
+
+                    // if this was the last index, the new tensor is complete, so
+                    // we can use it
+                    // -1 for C-style array indexing
+                    if(fillNext && freq_idx == wt->size_freqs() - 1)
+                    {
+#ifdef DBG_WAVETABLES
+                        printf("WT: AD: swap tensors\n");
+#endif
+                        current->swapWith(*wt);
+                    }
+                }
+                else
+                {
+                    // since we request the wavetables in order, and the
+                    // communication with MiddleWare is lossless, this should
+                    // imply a programming error
+                    printf("WARNING: MW sent (out-dated?) semantic \"%d\", "
+                           "but the next required semantic is \"%d\" - ignoring!\n",
+                           (int)sem_idx, (int)wt->write_pos_delayed_semantics(freq_idx));
+                    assert(false); // in debug mode, just abort now
+                }
+            }
+        }
+    },
+
+    //Send Messages To Oscillator Realtime Table
+    {"OscilSmp/", rDoc("Primary Oscillator"),
+        &OscilGen::ports,
+        rBOIL_BEGIN
+        if(obj->OscilGn == NULL) return;
+        data.obj = obj->OscilGn;
+        if(strstr(msg, "paste"))
+        {
+            SNIP
+            OscilGen::ports.dispatch(msg, data);
+        }
+        else
+            data.forward();
+        rBOIL_END},
+    {"FMSmp/", rDoc("Modulating Oscillator"),
+        &OscilGen::ports,
+        rBOIL_BEGIN
+        if(obj->FmGn == NULL) return;
+        data.obj = obj->FmGn;
+        if(strstr(msg, "paste"))
+        {
+            SNIP
+            OscilGen::ports.dispatch(msg, data);
+        }
+        else
+            data.forward();
+        rBOIL_END},
+
 };
 #undef rChangeCb
 
@@ -444,8 +638,8 @@ static const Ports globalPorts = {
 #define rChangeCb obj->last_update_timestamp = obj->time->time();
 static const Ports adPorts = {//XXX 16 should not be hard coded
     rSelf(ADnoteParameters),
-    rPaste,
-    rArrayPaste,
+    rPasteAndReply,
+    rArrayPasteAndReply,
     rRecurs(VoicePar, NUM_VOICES),
     {"VoicePar#" STRINGIFY(NUM_VOICES) "/Enabled::T:F",
      rProp(parameter) rShort("enable") rDoc("Voice Enable")
@@ -459,14 +653,16 @@ const Ports &ADnoteVoiceParam::ports  = voicePorts;
 const Ports &ADnoteGlobalParam::ports = globalPorts;
 
 ADnoteParameters::ADnoteParameters(const SYNTH_T &synth, FFTwrapper *fft_,
-                                   const AbsTime *time_)
-    :PresetsArray(), GlobalPar(time_), time(time_), last_update_timestamp(0)
+                                   const AbsTime *time_, bool waveTables)
+    :PresetsArray(), GlobalPar(time_), time(time_), last_update_timestamp(0),
+    waveTables(waveTables)
 {
     setpresettype("Padsynth");
     fft = fft_;
 
 
     for(int nvoice = 0; nvoice < NUM_VOICES; ++nvoice) {
+        VoicePar[nvoice].waveTables = waveTables;
         VoicePar[nvoice].GlobalPDetuneType = &GlobalPar.PDetuneType;
         VoicePar[nvoice].time = time_;
         EnableVoice(synth, nvoice, time_);
@@ -616,6 +812,12 @@ void ADnoteVoiceParam::defaults()
 
     FMFreqEnvelope->defaults();
     FMAmpEnvelope->defaults();
+
+    // compute wavetables without allocating them again
+    // in case of non wavetable mode, all buffers will be filled with zeroes to
+    // avoid uninitialized reads
+    OscilGn->recalculateDefaultWaveTable(table, !waveTables);
+    FmGn->recalculateDefaultWaveTable(tableFm, !waveTables);
 }
 
 
@@ -652,6 +854,11 @@ void ADnoteVoiceParam::enable(const SYNTH_T &synth, FFTwrapper *fft,
     FMFreqEnvelope->init(ad_voice_fm_freq);
     FMAmpEnvelope = new EnvelopeParams(64, 1, time);
     FMAmpEnvelope->init(ad_voice_fm_amp);
+
+    table = OscilGn->allocWaveTable();
+    tableFm = FmGn->allocWaveTable();
+    nextTable = OscilGn->allocWaveTable();
+    nextTableFm = FmGn->allocWaveTable();
 }
 
 /*
@@ -688,6 +895,11 @@ void ADnoteParameters::KillVoice(int nvoice)
 
 void ADnoteVoiceParam::kill()
 {
+    delete table;
+    delete tableFm;
+    delete nextTable;
+    delete nextTableFm;
+
     delete OscilGn;
     delete FmGn;
 
@@ -1190,6 +1402,9 @@ void ADnoteVoiceParam::paste(ADnoteVoiceParam &a)
     if ( time ) {
         last_update_timestamp = time->time();
     }
+
+    table->require_update_request();
+    tableFm->require_update_request();
 }
 
 void ADnoteGlobalParam::paste(ADnoteGlobalParam &a)
@@ -1398,6 +1613,115 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
         }
         xml.exitbranch();
     }
+
+    table->require_update_request();
+    tableFm->require_update_request();
+}
+
+void ADnoteParameters::requestWavetables(rtosc::ThreadLink* bToU, int part, int kit)
+{
+    // for AD note, all waves exist in memory, so we compute wavetables for
+    // all of them, even for user-disabled voices (common case)
+    // usually, user-disabled voices are plain sine waves, so this is fast
+    for (std::size_t v = 0; v < NUM_VOICES; ++v)
+    {
+        VoicePar[v].requestWavetables(bToU, part, kit, v);
+    }
+}
+
+void ADnoteVoiceParam::requestWavetables(rtosc::ThreadLink* bToU, int part, int kit, int voice)
+{
+    const bool notFmAndFm[] = { false, true };
+    for(bool isFmSmp : notFmAndFm)
+    {
+        // give MW all it needs to generate the new table
+        WaveTable* const wt = isFmSmp ? tableFm : table;
+
+        if(!wt->outdated())
+        {
+            for(tensor_size_t freq_idx = 0; freq_idx < wt->size_freqs(); ++freq_idx)
+            {
+                tensor_size_t write_pos = wt->write_pos_semantics(freq_idx);
+                tensor_size_t write_space = wt->write_space_semantics(freq_idx);
+
+                if(write_space)
+                {
+#ifdef DBG_WAVETABLES
+                    wt->dump_rb(freq_idx);
+                    printf("WT: AD WT %p requesting %d new 2D Tensors at position %d (reason: too many consumed) %p %p...\n",
+                           wt, (int)write_space, (int)write_pos, wt->get_freqs_addr(), wt->get_semantics_addr());
+#endif
+                    // max. number of semantics is 512 (TODO: not hard coded),
+                    // *4 because 4 params per semantic (for loop below),
+                    // *2 because of ~8 preceding args:
+                    char argstr[4096] = { 'i', 'i', 'i', // path
+                                          isFmSmp ? 'T' : 'F',
+                                          'i', // parameter change time (0)
+                                          'i', 'i', // write pos + space
+                                          'i', // wavetable params (Presonance)
+                                          0
+                                        };
+                    rtosc_arg_t args[4096];
+                    assert(sizeof(args)/sizeof(args[0]) == (sizeof(argstr)/sizeof(argstr[0])));
+
+                    rtosc_arg_t* aptr = args; char* sptr = argstr;
+                    // path to this voice
+                    *sptr++ = 'i'; aptr++->i = part;
+                    *sptr++ = 'i'; aptr++->i = kit;
+                    *sptr++ = 'i'; aptr++->i = voice;
+                    *sptr++ = isFmSmp ? 'T' : 'F';
+                    // parameter change time (none)
+                    *sptr++ = 'i'; aptr++->i = 0;
+                    // wavetable parameters (Presonance)
+                    *sptr++ = 'i'; aptr++->i = isFmSmp ? 0 : (int)Presonance;
+                    // semantics and freqs of waves that need to be regenerated
+                    tensor_size_t imax = write_pos + write_space;
+                    assert(imax < (int)(sizeof(argstr)/sizeof(argstr[0])));
+                    const char semType = wt->mode() == WaveTable::WtMode::freqwave_smps ? 'f' : 'i';
+                    for(tensor_size_t sem_idx_2 = write_pos; sem_idx_2 < imax; ++sem_idx_2)
+                    {
+                        tensor_size_t sem_idx = sem_idx_2 % wt->size_semantics();
+                        *sptr++ = 'i'; aptr++->i = sem_idx;
+                        *sptr++ = 'i'; aptr++->i = freq_idx;
+                        *sptr++ = semType;
+                        // TODO: optimize this: function ptr on [](WaveTable*, int, rtosc_arg_t*)
+                        if(semType == 'f') aptr++->f = wt->get_sem(sem_idx).floatVal;
+                        else aptr++->i = wt->get_sem(sem_idx).intVal;
+                        *sptr++ = 'f'; aptr++->f = wt->get_freq(freq_idx);
+                    }
+                    // string termination
+                    *sptr = 0;
+
+                    bToU->writeArray("/request-wavetable", argstr, args);
+                    // tell the ringbuffer that we can not write more
+                    wt->inc_write_pos_semantics(freq_idx, write_space);
+                } // if write_space
+            } // for loop over freqs
+        } // !wt->outdated()
+
+        if(wt->update_request_required())
+        {
+#ifdef DBG_WAVETABLES
+            printf("WT: AD WT %p requesting new wavetable (reason: outdated)\n",
+                   wt);
+#endif
+
+            bToU->write("/request-wavetable", isFmSmp ? "iiiTii" : "iiiFii",
+                    // path to this voice (T+F give the OscilGen of this voice)
+                    part, kit, voice,
+                    // tensor relevant parameter change time (none)
+                    0,
+                    // wavetable parameters (currently, only Presonance)
+                    isFmSmp ? 0 : (int)Presonance);
+            // don't mark the whole ringbuffer (-1) as "write requested"
+            // because the current Tensor3 will be swapped before it will
+            // be refilled
+            //wt->dump_rb();
+
+            wt->update_request_sent();
+        }
+
+    } // notFmAndFm
 }
 
 }

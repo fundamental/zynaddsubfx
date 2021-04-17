@@ -17,6 +17,7 @@
 #include "../globals.h"
 #include <rtosc/ports.h>
 #include "../Params/Presets.h"
+#include "../Params/WaveTableFwd.h"
 
 namespace zyn {
 
@@ -24,7 +25,7 @@ class OscilGen:public Presets
 {
     public:
         OscilGen(const SYNTH_T &synth, FFTwrapper *fft_, Resonance *res_);
-        ~OscilGen() override;
+        ~OscilGen();
 
         /**computes the full spectrum of oscil from harmonics,phases and basefunc*/
         void prepare();
@@ -50,6 +51,21 @@ class OscilGen:public Presets
         void getfromXML(XMLwrapper& xml);
 
         void convert2sine();
+
+        //! initial calculation for pre-allocated wavetable, no allocations
+        //! @param fillWithZeroes if true, all buffers will be zero, and no random will be consumed
+        void recalculateDefaultWaveTable(WaveTable*, bool fillWithZeroes = false) const;
+        //! allocating a wavetable with full capacity and without any waves
+        WaveTable *allocWaveTable() const;
+        //! calculate the wave table audio buffers
+        wavetable_types::float32* calculateWaveTableData(wavetable_types::float32 freq,
+            wavetable_types::IntOrFloat semantic,
+            int Presonance);
+        //! calculate wave table mode, i.e. meaning + handling of semantics
+        wavetable_types::WtMode calculateWaveTableMode() const;
+        //! calculate freqs + semantics
+        std::pair<Tensor1<wavetable_types::float32>*, Tensor1<wavetable_types::IntOrFloat>*>
+            calculateWaveTableScales(wavetable_types::WtMode wtMode, bool fillWithZeroes = false) const;
 
         //Parameters
 
@@ -93,6 +109,8 @@ class OscilGen:public Presets
           63..0 - block type randomness - 0 is maximum
           65..127 - each harmonic randomness - 127 is maximum*/
         unsigned char Prand;
+        int calculateOutpos() const;
+        unsigned char getFinalOutpos() const;
         unsigned char Pamprandpower, Pamprandtype; //amplitude randomness
         unsigned char Padaptiveharmonics; //the adaptive harmonics status (off=0,on=1,etc..)
         unsigned char Padaptiveharmonicsbasefreq; //the base frequency of the adaptive harmonic (30..3000Hz)
@@ -107,9 +125,7 @@ class OscilGen:public Presets
 
         bool ADvsPAD; //!< true if it is used by PADsynth instead of ADsynth
 
-        static const rtosc::MergePorts ports;
-        static const rtosc::Ports      non_realtime_ports;
-        static const rtosc::Ports      realtime_ports;
+        static const rtosc::Ports ports;
 
         /* Oscillator Frequencies -
          *  this is different than the harmonics set-up by the user,
@@ -146,6 +162,7 @@ class OscilGen:public Presets
 
         float userfunc(float x);
 
+        unsigned char getFinalOutpos(int outpos) const;
     public:
         //Check system for needed updates
         bool needPrepare(void);
@@ -159,6 +176,10 @@ class OscilGen:public Presets
         //this can be called for the sine and components, and for the spectrum
         //(that's why the sine and cosine components should be processed with a separate call)
         void adaptiveharmonicpostprocess(fft_t *f, int size);
+
+        //! whether the generation of the wave (OscilGen::get) can consume any random
+        //! for at least one frequency
+        bool mayUseRandom() const;
 
         //Internal Data
         unsigned char oldbasefunc, oldbasepar, oldhmagtype,

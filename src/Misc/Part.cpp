@@ -1347,4 +1347,15 @@ bool Part::Kit::validNote(char note) const
     return !Pmuted && inRange((uint8_t)note, Pminkey, Pmaxkey);
 }
 
+void Part::Kit::requestWavetables(rtosc::ThreadLink* bToU, int part, int kit)
+{
+    // if it exists in memory, precompute wavetables, even if the ad note is
+    // disabled (disabled ad notes are usually plane sine waves, so this should
+    // be fast)
+    if(adpars)
+    {
+        adpars->requestWavetables(bToU, part, kit);
+    }
+}
+
 }

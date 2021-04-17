@@ -15,7 +15,11 @@ Open3.popen3(my_path + "/../zynaddsubfx -O null --no-gui") do |stdin, stdout, st
     # print "line: " + line;
     if /^lo server running on (\d+)$/.match(line) then
       sleep 3 # give zyn more time to setup
-      port_checker_rval = system(my_path + "/../../rtosc/port-checker 'osc.udp://localhost:" + $1 + "/'")
+      # Timeout 500 is currently required because MiddleWare can be too busy to reply when it
+      # calls OscilGen::get thousands of times in a row to calculate the whole wave table at once.
+      # This should be changed once MiddleWare will calculate the wave table bit by bit and will
+      # be more responsive.
+      port_checker_rval = system(my_path + "/../../rtosc/port-checker --timeout 500 'osc.udp://localhost:" + $1 + "/'")
       if port_checker_rval != true then
         puts "Error: port-checker has returned #{$?.exitstatus}."
         rval=1

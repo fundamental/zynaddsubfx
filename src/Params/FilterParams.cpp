@@ -63,8 +63,8 @@ static const rtosc::Ports subports = {
     obj->last_update_timestamp = obj->time->time(); } } while(false)
 const rtosc::Ports FilterParams::ports = {
     rSelf(FilterParams),
-    rPaste,
-    rArrayPaste,
+    rPasteAndReply,
+    rArrayPasteAndReply,
     rOption(loc, rProp(internal),
             rOptions(ad_global_filter, ad_voice_filter, sub_filter, in_effect),
             "location of the filter"),

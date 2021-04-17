@@ -147,7 +147,8 @@ static const rtosc::Ports realtime_ports =
     [](const char *m, rtosc::RtData &d){
         rObject &paste = **(rObject **)rtosc_argument(m,0).b.data;
         rObject &o = *(rObject*)d.obj;
-        o.pasteRT(paste);}}
+        o.pasteRT(paste);
+        d.reply("/rt_paste_done", "s", d.loc);}}
 
 };
 static const rtosc::Ports non_realtime_ports =
@@ -160,7 +161,10 @@ static const rtosc::Ports non_realtime_ports =
         rObject &o = *(rObject*)d.obj;
         o.paste(paste);
         //avoid the match to forward the request along
-        d.matches--;}},
+        d.matches--;
+        // "/damage" is not replied here yet - this is handled later when
+        // pasting the realtime ports
+        }},
     //Harmonic Source Distribution
     rRecurp(oscilgen, "Oscillator"),
     rRecurp(resonance, "Resonance"),

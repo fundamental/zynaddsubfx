@@ -172,23 +172,31 @@ char *rtosc_splat(const char *path, std::set<std::string>);
         rObject *obj = (rObject*)d.obj; \
         d.reply(d.loc, "s", obj->type);}}
 
-#define rPaste \
+#define rPasteInternal(doReply) \
 rPresetType, \
 {"paste:b", rProp(internal) rDoc("paste port"), 0, \
     [](const char *m, rtosc::RtData &d){ \
         printf("rPaste...\n"); \
         rObject &paste = **(rObject **)rtosc_argument(m,0).b.data; \
         rObject &o = *(rObject*)d.obj;\
-        o.paste(paste);}}
+        o.paste(paste);\
+        if(doReply) { \
+            d.reply("/rt_paste_done", "s", d.loc);}}}
+#define rPaste rPasteInternal(false)
+#define rPasteAndReply rPasteInternal(true)
 
-#define rArrayPaste \
+#define rArrayPasteInternal(doReply) \
 {"paste-array:bi", rProp(internal) rDoc("array paste port"), 0, \
     [](const char *m, rtosc::RtData &d){ \
         printf("rArrayPaste...\n"); \
         rObject &paste = **(rObject **)rtosc_argument(m,0).b.data; \
         int field = rtosc_argument(m,1).i; \
         rObject &o = *(rObject*)d.obj;\
-        o.pasteArray(paste,field);}}
+        o.pasteArray(paste,field);\
+        if(doReply) { \
+            d.reply("/rt_paste_done", "s", d.loc);}}}
+#define rArrayPaste rArrayPasteInternal(false)
+#define rArrayPasteAndReply rArrayPasteInternal(true)
 
 }
 

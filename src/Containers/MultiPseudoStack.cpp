@@ -99,6 +99,11 @@ retry:
     //printf("w%d ", free_elms+1);
 }
 
+int8_t LockFreeQueue::available()
+{
+    return (int8_t)avail.load();
+}
+
 MultiQueue::MultiQueue(void)
     :pool(new qli_t[32]), m_free(pool, 32), m_msgs(pool, 32)
 {

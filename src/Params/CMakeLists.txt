@@ -9,5 +9,6 @@ set(zynaddsubfx_params_SRCS
 	Params/PresetsArray.cpp
 	Params/PresetsStore.cpp
 	Params/SUBnoteParameters.cpp
+	Params/WaveTable.cpp
 	PARENT_SCOPE
 )

@@ -74,7 +74,7 @@ rArrayDT(name, length, __VA_ARGS__), \
 
 static const rtosc::Ports localPorts = {
     rSelf(EnvelopeParams),
-    rPaste,
+    rPasteAndReply,
 #undef  rChangeCb
 #define rChangeCb if(!obj->Pfreemode) obj->converttofree(); if (obj->time) { \
         obj->last_update_timestamp = obj->time->time(); }

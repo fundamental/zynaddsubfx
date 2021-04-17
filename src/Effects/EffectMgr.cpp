@@ -46,7 +46,7 @@ namespace zyn {
         }}
 static const rtosc::Ports local_ports = {
     rSelf(EffectMgr, rEnabledByCondition(self-enabled)),
-    rPaste,
+    rPasteAndReply,
     rEnabledCondition(self-enabled, obj->geteffect()),
     rRecurp(filterpars, "Filter Parameter for Dynamic Filter"),
     {"Pvolume::i", rProp(parameter) rLinear(0,127) rShort("amt") rDoc("amount of effect"),

@@ -37,7 +37,7 @@ class PADnoteParameters:public Presets
     public:
         PADnoteParameters(const SYNTH_T &synth_, FFTwrapper *fft_,
                           const AbsTime *time_ = nullptr);
-        ~PADnoteParameters() override;
+        ~PADnoteParameters();
 
         void defaults();
         void add2XML(XMLwrapper& xml) override;

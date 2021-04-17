@@ -116,6 +116,9 @@ class Part
             bool    active(void) const;
             uint8_t sendto(void) const;
             bool    validNote(char note) const;
+            //! write WT requests into *bToU for those OscilGens in this kit
+            //! that require it
+            void    requestWavetables(rtosc::ThreadLink* bToU, int part, int kit);
 
             const static rtosc::Ports &ports;
         } kit[NUM_KIT_ITEMS];

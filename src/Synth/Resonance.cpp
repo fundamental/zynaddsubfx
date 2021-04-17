@@ -28,7 +28,7 @@ namespace zyn {
 
 const rtosc::Ports Resonance::ports = {
     rSelf(Resonance),
-    rPaste,
+    rPasteAndReply,
     rToggle(Penabled,      rShort("enable"), rDefault(false),
             "resonance enable"),
     rToggle(Pprotectthefundamental, rShort("p.fund."), rDefault(false),

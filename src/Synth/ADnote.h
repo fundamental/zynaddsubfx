@@ -113,7 +113,7 @@ class ADnote:public SynthNote
         inline void fadein(float *smps) const;
 
         //GLOBALS
-        ADnoteParameters &pars;
+        ADnoteParameters &pars; // TODO: const??
         unsigned char     stereo; //if the note is stereo (allows note Panning)
         float note_log2_freq;
         float velocity;
@@ -327,6 +327,9 @@ class ADnote:public SynthNote
 
         //how the fine detunes are made bigger or smaller
         float bandwidthDetuneMultiplier;
+
+        //should only be false for debugging
+        const bool waveTables;
 };
 
 }

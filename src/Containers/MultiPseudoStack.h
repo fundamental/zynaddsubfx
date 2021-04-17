@@ -39,6 +39,7 @@ public:
     ~LockFreeQueue(void);
     qli_t *read(void);
     void write(qli_t *Q);
+    int8_t available();
 };
 
 
@@ -65,6 +66,8 @@ public:
     void write(qli_t *q) {        m_msgs.write(q); }
     //! take an item from the queue, must be freed
     qli_t *read(void)    { return m_msgs.read();   }
+    //! return if there's at least one item in the queue
+    bool canRead()       { return m_msgs.available(); }
 };
 
 }

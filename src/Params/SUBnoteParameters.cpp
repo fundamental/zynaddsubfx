@@ -36,7 +36,7 @@ namespace zyn {
 #define rChangeCb if (obj->time) { obj->last_update_timestamp = obj->time->time(); }
 static const rtosc::Ports SUBnotePorts = {
     rSelf(SUBnoteParameters),
-    rPaste,
+    rPasteAndReply,
     rToggle(Pstereo,    rShort("stereo"), rDefault(true), "Stereo Enable"),
     rParamF(Volume,  rShort("volume"), rDefault(0), rUnit(dB), rLinear(-60.0f,20.0f), "Volume"),
     rParamZyn(PPanning, rShort("panning"), rDefault(64), "Left Right Panning"),

@@ -32,7 +32,7 @@ namespace zyn {
 #define rEnd }
 static const rtosc::Ports _ports = {
     rSelf(LFOParams),
-    rPaste,
+    rPasteAndReply,
     rOption(loc, rProp(internal),
             rOptions(ad_global_amp, ad_global_freq, ad_global_filter,
                      ad_voice_amp, ad_voice_freq, ad_voice_filter, unspecified),

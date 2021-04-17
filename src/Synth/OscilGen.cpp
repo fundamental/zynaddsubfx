@@ -16,8 +16,11 @@
 #include "../DSP/FFTwrapper.h"
 #include "../Synth/Resonance.h"
 #include "../Misc/WaveShapeSmps.h"
+#include "../Params/WaveTable.h"
+
 
 #include <cassert>
+#include <chrono>
 #include <cstdlib>
 #include <cmath>
 #include <cstdio>
@@ -31,9 +34,10 @@
 namespace zyn {
 
 #define rObject OscilGen
-const rtosc::Ports OscilGen::non_realtime_ports = {
+const rtosc::Ports OscilGen::ports = {
     rSelf(OscilGen),
-    rPaste,
+    rPasteAndReply,
+    rPresetType,
     //TODO ensure min/max
     rOption(Phmagtype, rShort("scale"),
             rOptions(linear,dB scale (-40),
@@ -108,19 +112,16 @@ const rtosc::Ports OscilGen::non_realtime_ports = {
             if(!rtosc_narguments(m))
                 d.reply(d.loc, "i", phase);
             else {
+                //set+broadcast
                 phase = rtosc_argument(m,0).i;
-                //XXX hack hack
-                char  repath[128];
-                strcpy(repath, d.loc);
-                char *edit   = strrchr(repath, '/')+1;
-                strcpy(edit, "prepare");
+                d.broadcast(d.loc, "i", phase);
+                //prepare OscilGen
                 OscilGen &o = *((OscilGen*)d.obj);
                 fft_t *data = new fft_t[o.synth.oscilsize / 2];
                 o.prepare(data);
-                // fprintf(stderr, "sending '%p' of fft data\n", data);
-                d.chain(repath, "b", sizeof(fft_t*), &data);
                 o.pendingfreqs = data;
-                d.broadcast(d.loc, "i", phase);
+                delete[] o.oscilFFTfreqs;
+                o.oscilFFTfreqs = data;
             }
         }},
     //TODO update to rArray and test
@@ -134,20 +135,16 @@ const rtosc::Ports OscilGen::non_realtime_ports = {
             if(!rtosc_narguments(m))
                 d.reply(d.loc, "i", mag);
             else {
+                //set+broadcast
                 mag = rtosc_argument(m,0).i;
-                //printf("setting magnitude\n\n");
-                //XXX hack hack
-                char  repath[128];
-                strcpy(repath, d.loc);
-                char *edit   = strrchr(repath, '/')+1;
-                strcpy(edit, "prepare");
+                d.broadcast(d.loc, "i", mag);
+                //prepare OscilGen
                 OscilGen &o = *((OscilGen*)d.obj);
                 fft_t *data = new fft_t[o.synth.oscilsize / 2];
                 o.prepare(data);
-                // fprintf(stderr, "sending '%p' of fft data\n", data);
-                d.chain(repath, "b", sizeof(fft_t*), &data);
                 o.pendingfreqs = data;
-                d.broadcast(d.loc, "i", mag);
+                delete[] o.oscilFFTfreqs;
+                o.oscilFFTfreqs = data;
             }
         }},
     {"base-spectrum:", rProp(non-realtime) rDoc("Returns spectrum of base waveshape"),
@@ -176,9 +173,9 @@ const rtosc::Ports OscilGen::non_realtime_ports = {
             OscilGen &o = *(OscilGen*)d.obj;
             fft_t *data = new fft_t[o.synth.oscilsize / 2];
             o.prepare(data);
-            // fprintf(stderr, "sending '%p' of fft data\n", data);
-            d.chain(d.loc, "b", sizeof(fft_t*), &data);
             o.pendingfreqs = data;
+            delete[] o.oscilFFTfreqs;
+            o.oscilFFTfreqs = data;
         }},
     {"convert2sine:", rProp(non-realtime) rDoc("Translates waveform into FS"),
         NULL, [](const char *, rtosc::RtData &d) {
@@ -199,11 +196,7 @@ const rtosc::Ports OscilGen::non_realtime_ports = {
             char *edit   = strrchr(repath, '/')+1;
             *edit = 0;
             d.broadcast("/damage", "s", repath);
-        }}};
-
-const rtosc::Ports OscilGen::realtime_ports{
-    rSelf(OscilGen),
-    rPresetType,
+        }},
     rParamZyn(Prand, rLinear(-64, 63), rShort("phase rnd"),
             rDefaultDepends(ADvsPAD), rPreset(true, 127), rPreset(false, 64),
             "Oscillator Phase Randomness: smaller than 0 is \""
@@ -246,20 +239,12 @@ const rtosc::Ports OscilGen::realtime_ports{
             delete[] spc;
         }},
     {"prepare:b", rProp(internal) rProp(realtime) rProp(pointer) rDoc("Sets prepared fft data"),
-        NULL, [](const char *m, rtosc::RtData &d) {
-            // fprintf(stderr, "prepare:b got a message from '%s'\n", m);
-            OscilGen &o = *(OscilGen*)d.obj;
-            assert(rtosc_argument(m,0).b.len == sizeof(void*));
-            d.reply("/free", "sb", "fft_t", sizeof(void*), &o.oscilFFTfreqs);
-            assert(o.oscilFFTfreqs !=*(fft_t**)rtosc_argument(m,0).b.data);
-            o.oscilFFTfreqs = *(fft_t**)rtosc_argument(m,0).b.data;
+        NULL, [](const char *m, rtosc::RtData &) {
+            fprintf(stderr, "prepare:b got a message from '%s'.\n", m);
+            fprintf(stderr, "prepare:b should not be used anymore. aborting.\n");
+            assert(false);
         }},
 
-};
-
-const rtosc::MergePorts OscilGen::ports{
-    &OscilGen::realtime_ports,
-    &OscilGen::non_realtime_ports
 };
 
 #ifndef M_PI_2
@@ -479,6 +464,125 @@ void OscilGen::convert2sine()
     }
     delete[] freqs;
     prepare();
+}
+
+class timer_t
+{
+    using time_point = std::chrono::steady_clock::time_point;
+    std::size_t num;
+    time_point begin;
+public:
+    timer_t(std::size_t num) :
+        num(num),
+        begin(std::chrono::steady_clock::now()) {}
+    ~timer_t() {
+         time_point end = std::chrono::steady_clock::now();
+         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+         if(ms == 0)
+            std::cout << "Calculated " << num << " wavetables in <1 ms" << std::endl;
+         else
+            std::cout << "Calculated " << num << " wavetables in " << ms << " ms" << std::endl;
+    }
+};
+
+wavetable_types::WtMode OscilGen::calculateWaveTableMode() const
+{
+    using WtMode = wavetable_types::WtMode;
+    if(false) // TODO: if wave modulation is wanted
+    {
+        return WtMode::freqwave_smps;
+    }
+    else
+    {
+        return mayUseRandom() ? WtMode::freqseed_smps : WtMode::freq_smps;
+    }
+}
+
+std::pair<Tensor1<wavetable_types::float32>*, Tensor1<wavetable_types::IntOrFloat>*> OscilGen::calculateWaveTableScales(
+    wavetable_types::WtMode wtMode, bool fillWithZeroes) const
+{
+    Tensor1<wavetable_types::float32>* freqs;
+    Tensor1<wavetable_types::IntOrFloat>* semantics;
+    using WtMode = wavetable_types::WtMode;
+
+    {
+        std::size_t freq_sz = WaveTable::num_freqs;
+        // TODO: random not relevant for wavetable modulation
+        std::size_t sem_sz = (wtMode == WtMode::freqseed_smps)
+                             ? WaveTable::num_semantics : 1;
+
+        freqs = new Tensor1<wavetable_types::float32>(freq_sz, freq_sz);
+        semantics = new Tensor1<wavetable_types::IntOrFloat>(sem_sz, sem_sz);
+    }
+
+    // semantics
+    if(wtMode == WtMode::freqseed_smps)
+    {
+        if(fillWithZeroes)
+        {
+            for(tensor_size_t i = 0; i < semantics->size(); ++i)
+            {
+                (*semantics)[i].intVal = (int)i; // do not consume any random
+            }
+        }
+        else
+        {
+            for(tensor_size_t i = 0; i < semantics->size(); ++i)
+            {
+                (*semantics)[i].intVal = prng();
+            }
+        }
+    }
+    else if(wtMode == WtMode::freq_smps)
+    {
+        assert(semantics->size() == 1);
+        (*semantics)[0].intVal = 0;
+    }
+    else
+    {
+        assert(false);
+    }
+
+    // frequency
+    (*freqs)[0] = 55.f;
+    for(tensor_size_t i = 1; i < freqs->size(); ++i)
+    {
+        (*freqs)[i] = 2.f * (*freqs)[i-1];
+    }
+
+    return std::make_pair(freqs, semantics);
+}
+
+wavetable_types::float32* OscilGen::calculateWaveTableData(wavetable_types::float32 freq,
+    wavetable_types::IntOrFloat semantic,
+    int Presonance)
+{
+    wavetable_types::float32* data = new wavetable_types::float32[synth.oscilsize];
+    newrandseed(semantic.intVal);
+    get(data, freq, Presonance);
+    return data;
+}
+
+WaveTable *OscilGen::allocWaveTable() const
+{
+    return new WaveTable(static_cast<std::size_t>(synth.oscilsize));
+}
+
+void OscilGen::recalculateDefaultWaveTable(WaveTable * wt, bool fillWithZeroes) const
+{
+    wt->setMode(WaveTable::WtMode::freq_smps);
+
+    // TODO: ringbuffer at size 1 will not work because the write ptr always
+    //       needs to be at least 1 behind the read pointer
+    wt->setFreq(0, 55.f);
+    wt->setSemantic(0, wavetable_types::IntOrFloat{.intVal=0});
+
+    // no FFT/IFFT required, it's a simple sine
+    // (the currently selected base function is still sine)
+    for(int k = 0; k < synth.oscilsize; ++k) {
+        wt->setDataAt(0,0,(tensor_size_t)k,
+            -sinf(2.0f * PI * (float)k / (float)synth.oscilsize));
+    }
 }
 
 float OscilGen::userfunc(float x)
@@ -1037,8 +1141,17 @@ bool OscilGen::needPrepare(void)
     return outdated == true || oscilprepared == false;
 }
 
+bool OscilGen::mayUseRandom() const
+{
+    return !ADvsPAD && (
+                        Prand > 64 || // phase randomness
+                        Pamprandtype  // amplitude randomness
+                        );
+}
+
 /*
  * Get the oscillator function
+ * When you change this, also change OscilGen::usesRandom
  */
 short int OscilGen::get(float *smps, float freqHz, int resonance)
 {
@@ -1050,11 +1163,7 @@ short int OscilGen::get(float *smps, float freqHz, int resonance)
     unsigned int realrnd = prng();
     sprng(randseed);
 
-    int outpos =
-        (int)((RND * 2.0f
-               - 1.0f) * synth.oscilsize_f * (Prand - 64.0f) / 64.0f);
-    outpos = (outpos + 2 * synth.oscilsize) % synth.oscilsize;
-
+    int outpos = calculateOutpos();
 
     clearAll(outoscilFFTfreqs, synth.oscilsize);
 
@@ -1132,10 +1241,32 @@ short int OscilGen::get(float *smps, float freqHz, int resonance)
 
     sprng(realrnd + 1);
 
-    if(Prand < 64)
-        return outpos;
-    else
-        return 0;
+    return getFinalOutpos(outpos);
+}
+/*
+// get function if you know that you only want a simple sine
+short int OscilGen::getSine(float *smps)
+{
+    getbasefunction(smps);
+}*/
+
+int OscilGen::calculateOutpos() const
+{
+    int outpos =
+            (int)((RND * 2.0f
+                   - 1.0f) * synth.oscilsize_f * (Prand - 64.0f) / 64.0f);
+    outpos = (outpos + 2 * synth.oscilsize) % synth.oscilsize;
+    return outpos;
+}
+
+unsigned char OscilGen::getFinalOutpos(int outpos) const
+{
+    return (Prand < 64) ? outpos : 0;
+}
+
+unsigned char OscilGen::getFinalOutpos() const
+{
+    return getFinalOutpos(calculateOutpos());
 }
 
 ///*

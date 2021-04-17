@@ -59,7 +59,7 @@ class AdNoteTest:public CxxTest::TestSuite
 
             fft = new FFTwrapper(BUF);
             //prepare the default settings
-            params = new ADnoteParameters(*synth, fft, time);
+            params = new ADnoteParameters(*synth, fft, time, false);
 
             //sawtooth to make things a bit more interesting
             params->VoicePar[0].OscilGn->Pcurrentbasefunc = 3;

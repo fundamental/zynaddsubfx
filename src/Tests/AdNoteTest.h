@@ -111,7 +111,7 @@ class AdNoteTest:public CxxTest::TestSuite
 
             fft = new FFTwrapper(synth->oscilsize);
             //prepare the default settings
-            defaultPreset = new ADnoteParameters(*synth, fft, time);
+            defaultPreset = new ADnoteParameters(*synth, fft, time, false);
 
             //Assert defaults
             TS_ASSERT(!defaultPreset->VoicePar[1].Enabled);
