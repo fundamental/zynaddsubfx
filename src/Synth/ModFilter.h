@@ -30,6 +30,7 @@ class ModFilter
 
         void addMod(LFO      &lfo);
         void addMod(Envelope &env);
+        void addMod(SEQ      &seq);
 
         //normal per tick update
         void update(float relfreq, float relq);
@@ -64,6 +65,7 @@ class ModFilter
         Filter       *right;//right channel filter
         Envelope     *env;  //center freq envelope
         LFO          *lfo;  //center freq lfo
+        SEQ          *seq;  //center freq lfo
 };
 
 }

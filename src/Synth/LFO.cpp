@@ -28,6 +28,7 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
     waveShape(lfopars.PLFOtype),
     deterministic(!lfopars.Pfreqrand),
     dt_(t.dt()),
+    time(t),
     lfopars_(lfopars), basefreq_(basefreq),
     watchOut(m, watch_prefix, "out")
 {
@@ -37,19 +38,23 @@ LFO::LFO(const LFOParams &lfopars, float basefreq, const AbsTime &t, WatchManage
 
     //max 2x/octave
     const float lfostretch = powf(basefreq / 440.0f, (stretch - 64.0f) / 63.0f);
-
-    const float lfofreq = lfopars.freq * lfostretch;
+    float lfofreq;
+    if (!lfopars.speedratio) {
+        lfofreq = lfopars.freq * lfostretch;   
+    } else {
+        lfofreq = (float(time.tempo)) / 60.0f * lfopars.speedratio;
+    }
+    
     phaseInc = fabsf(lfofreq) * t.dt();
-
+    
     if(!lfopars.Pcontinous) {
-        if(lfopars.Pstartphase == 0)
+        if(!lfopars.Pstartphase)
             phase = RND;
         else
-            phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f, 1.0f);
+            phase = 0.0f;
     }
     else {
-        const float tmp = fmod(t.time() * phaseInc, 1.0f);
-        phase = fmod((lfopars.Pstartphase - 64.0f) / 127.0f + 1.0f + tmp, 1.0f);
+        phase = fmod((float)t.time() * phaseInc, 1.0f);
     }
 
     //Limit the Frequency(or else...)
@@ -167,7 +172,11 @@ float LFO::lfoout()
         const float lfostretch = powf(basefreq_ / 440.0f, (stretch - 64.0f) / 63.0f);
 
         float lfofreq = lfopars_.freq * lfostretch;
-
+        if (!lfopars_.speedratio) {
+            lfofreq = lfopars_.freq * lfostretch;   
+        } else {
+            lfofreq = (float(time.tempo)) / 60.0f * lfopars_.speedratio;
+        }
         phaseInc = fabsf(lfofreq) * dt_;
 
         switch(lfopars_.fel) {
@@ -185,7 +194,7 @@ float LFO::lfoout()
         }
     }
 
-    float out = baseOut(waveShape, phase);
+    float out = baseOut(waveShape, fmod(phase + (lfopars_.Pstartphase + 63.0f) / 127.0f, 1.0f));
 
     if(waveShape == LFO_SINE || waveShape == LFO_TRIANGLE)
         out *= lfointensity * (amp1 + phase * (amp2 - amp1));

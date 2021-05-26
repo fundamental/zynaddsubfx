@@ -53,6 +53,7 @@ struct ADnoteGlobalParam {
     EnvelopeParams *FreqEnvelope;    //Frequency Envelope
 
     LFOParams *FreqLfo; //Frequency LFO
+    SEQParams *FreqSeq; //Frequency LFO
 
     /********************************************
     *     AMPLITUDE GLOBAL PARAMETERS          *
@@ -71,6 +72,7 @@ struct ADnoteGlobalParam {
     EnvelopeParams *AmpEnvelope;
 
     LFOParams *AmpLfo;
+    SEQParams *AmpSeq;
 
     /* Adjustment factor for anti-pop fadein */
     unsigned char Fadein_adjustment;
@@ -92,6 +94,7 @@ struct ADnoteGlobalParam {
     EnvelopeParams *FilterEnvelope;
 
     LFOParams *FilterLfo;
+    SEQParams *FilterSeq;
 
     // RESONANCE
     Resonance *Reson;
@@ -201,6 +204,10 @@ struct ADnoteVoiceParam {
     unsigned char PFreqLfoEnabled;
     LFOParams    *FreqLfo;
 
+    /* Frequency SEQ */
+    unsigned char PFreqSeqEnabled;
+    SEQParams    *FreqSeq;
+
 
     /***************************
     *   AMPLITUDE PARAMETERS   *
@@ -233,6 +240,10 @@ struct ADnoteVoiceParam {
     unsigned char PAmpLfoEnabled;
     LFOParams    *AmpLfo;
 
+    /* Amplitude SEQ */
+    unsigned char PAmpSeqEnabled;
+    SEQParams    *AmpSeq;
+
 
 
     /*************************
@@ -250,6 +261,10 @@ struct ADnoteVoiceParam {
     /* Filter LFO */
     unsigned char PFilterLfoEnabled;
     LFOParams    *FilterLfo;
+
+    /* Filter SEQ */
+    unsigned char PFilterSeqEnabled;
+    SEQParams    *FilterSeq;
 
     // filter velocity sensing
     unsigned char PFilterVelocityScale;

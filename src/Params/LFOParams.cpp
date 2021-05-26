@@ -30,6 +30,31 @@ namespace zyn {
 #define rChangeCb if (obj->time) { obj->last_update_timestamp = obj->time->time(); }
 #define rBegin [](const char *msg, rtosc::RtData &d) {
 #define rEnd }
+  
+    
+#define rCrossOption(name, crossname, setcode, ...) \
+  {STRINGIFY(name) "::i:c:S",rProp(parameter) rProp(enumerated) DOC(__VA_ARGS__), NULL, rCrossOptionCb(name, crossname, setcode)}
+  
+#define rCrossOptionCb(name, cross, setcode) rBOIL_BEGIN \
+    { \
+        if(!strcmp("i", args) || !strcmp("I", args)) { \
+            int var = rtosc_argument(msg, 0).i; \
+            rLIMIT(var, atoi) \
+            setcode; \
+            /* cross broadcast to speedratio port */ \
+            char part_loc[128]; \
+            strncpy(part_loc, data.loc, sizeof(part_loc)); \
+            part_loc[sizeof(part_loc) - 1] = '\0'; \
+            char *end = strrchr(part_loc, '/'); \
+            if(end) { \
+                strcpy(&end[1], STRINGIFY(cross)); \
+                data.broadcast(part_loc, "f", obj->cross); \
+            } \
+            rChangeCb; \
+        } \
+    } \
+    rBOIL_END
+
 static const rtosc::Ports _ports = {
     rSelf(LFOParams),
     rPaste,
@@ -93,6 +118,12 @@ static const rtosc::Ports _ports = {
      }},
     rToggle(Pcontinous, rShort("c"), rDefault(false),
             "Enable for global operation"),
+    rCrossOption(ratiofixed, speedratio, obj->speedratio = speedratios[var], 
+        rShort("rat"), 
+        rOptions(SPEEDRATIO_OPTIONS), 
+        rLinear(0,20), rDefault(off), "select fixed ratio for BPM sync"),
+    rParamF(speedratio, rShort("r"), rLinear(0.0f,8.0f), rDefault(0.0f),
+            "ratio for BPM sync"),
     rParamZyn(Pstretch, rShort("str"), rCentered, rDefault(64),
         "Note frequency stretch"),
 // these are currently not yet implemented and must be hidden therefore
@@ -145,7 +176,7 @@ void LFOParams::setup()
 
 // TODO: reuse
 LFOParams::LFOParams(const AbsTime *time_) :
-    LFOParams(2.65, 0, 0, 127, 0, 0, 0, 0, loc_unspecified, time_)
+    LFOParams(2.65, 0, 0, 0, 0, 0, 0, 0, 0, loc_unspecified, time_)
 {
 }
 
@@ -157,6 +188,7 @@ LFOParams::LFOParams(float freq_,
                      char Prandomness_,
                      float Pdelay_,
                      char Pcontinous_,
+                     float speedratio_,
                      consumer_location_t loc,
                      const AbsTime *time_) : loc(loc),
                                              time(time_),
@@ -169,6 +201,7 @@ LFOParams::LFOParams(float freq_,
     Drandomness = Prandomness_;
     Ddelay      = Pdelay_;
     Dcontinous  = Pcontinous_;
+    Dspeedratio       = speedratio_;
 
     setup();
 }
@@ -179,27 +212,28 @@ LFOParams::LFOParams(consumer_location_t loc,
                                              last_update_timestamp(0) {
 
     auto init =
-        [&](float freq_, char Pintensity_, char Pstartphase_, char Pcutoff_, char PLFOtype_,
-            char Prandomness_, float delay_, char Pcontinous_)
+        [&](float freq_, char Pintensity_, char Pstartphase_, char PLFOtype_,
+            char Prandomness_, float delay_, char Pcontinous_, char speedratio_)
     {
         Dfreq       = freq_;
         Dintensity  = Pintensity_;
         Dstartphase = Pstartphase_;
-        Dcutoff     = Pcutoff_;
+        Dcutoff     = 127;
         DLFOtype    = PLFOtype_;
         Drandomness = Prandomness_;
         Ddelay      = delay_;
         Dcontinous  = Pcontinous_;
+        Dspeedratio = speedratio_;
     };
 
     switch(loc)
     {
-        case ad_global_amp:    init(6.49, 0, 64, 127, 0, 0, 0, 0); break;
-        case ad_global_freq:   init(3.71, 0, 64, 127, 0, 0, 0, 0); break;
-        case ad_global_filter: init(6.49, 0, 64, 127, 0, 0, 0, 0); break;
-        case ad_voice_amp:     init(11.25, 32, 64, 127, 0, 0, 0.94, 0); break;
-        case ad_voice_freq:    init(1.19, 40,  0, 127, 0, 0,  0, 0); break;
-        case ad_voice_filter:  init(1.19, 20, 64, 127, 0, 0,  0, 0); break;
+        case ad_global_amp:    init(6.49, 0, 64, 0, 0, 0, 0, 0); break;
+        case ad_global_freq:   init(3.71, 0, 64, 0, 0, 0, 0, 0); break;
+        case ad_global_filter: init(6.49, 0, 64, 0, 0, 0, 0, 0); break;
+        case ad_voice_amp:     init(11.25, 32, 64, 0, 0.94, 0, 0, 0); break;
+        case ad_voice_freq:    init(1.19, 40,  0, 0,  0, 0, 0, 0); break;
+        case ad_voice_filter:  init(1.19, 20, 64, 0,  0, 0, 0, 0); break;
         default: throw std::logic_error("Invalid LFO consumer location");
     }
 
@@ -219,6 +253,7 @@ void LFOParams::defaults()
     Prandomness = Drandomness;
     delay       = Ddelay;
     Pcontinous  = Dcontinous;
+    speedratio       = Dspeedratio;
     Pfreqrand   = 0;
     Pstretch    = 64;
 }
@@ -236,6 +271,7 @@ void LFOParams::add2XML(XMLwrapper& xml)
     xml.addparreal("delay", delay);
     xml.addpar("stretch", Pstretch);
     xml.addparbool("continous", Pcontinous);
+    xml.addparreal("speedratio", speedratio);
 }
 
 void LFOParams::getfromXML(XMLwrapper& xml)
@@ -259,6 +295,7 @@ void LFOParams::getfromXML(XMLwrapper& xml)
     }
     Pstretch    = xml.getpar127("stretch", Pstretch);
     Pcontinous  = xml.getparbool("continous", Pcontinous);
+    speedratio  = xml.getparreal("speedratio", speedratio);
 }
 
 #define COPY(y) this->y=x.y
@@ -273,6 +310,7 @@ void LFOParams::paste(LFOParams &x)
     COPY(Pfreqrand);
     COPY(delay);
     COPY(Pcontinous);
+    COPY(speedratio);
     COPY(Pstretch);
 
     if ( time ) {

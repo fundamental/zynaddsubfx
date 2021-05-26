@@ -22,6 +22,7 @@
 #include "../Params/EnvelopeParams.h"
 #include "../Params/FilterParams.h"
 #include "../Params/LFOParams.h"
+#include "../Params/SEQParams.h"
 #include "../Params/PADnoteParameters.h"
 #include "../Params/Presets.h"
 #include "../Params/PresetsArray.h"
@@ -131,6 +132,9 @@ const rtosc::Ports preset_ports
 //Params/LFOParams.cpp:    //        setpresettype("Plfofrequency");
 //Params/LFOParams.cpp:    //        setpresettype("Plfoamplitude");
 //Params/LFOParams.cpp:    //        setpresettype("Plfofilter");
+//Params/SEQParams.cpp:    //        setpresettype("Pseqfrequency");
+//Params/SEQParams.cpp:    //        setpresettype("Pseqamplitude");
+//Params/SEQParams.cpp:    //        setpresettype("Pseqfilter");
 //Params/PADnoteParameters.cpp:    setpresettype("Ppadsynth");
 //Params/SUBnoteParameters.cpp:    setpresettype("Psubsynth");
 //Synth/OscilGen.cpp:    setpresettype("Poscilgen");
@@ -299,6 +303,8 @@ void doClassPaste(std::string type, std::string type_, MiddleWare &mw, string ur
         doPaste<EnvelopeParams>(mw, url, type_, data);
     else if(type == "LFOParams")
         doPaste<LFOParams>(mw, url, type_, data);
+    else if(type == "SEQParams")
+        doPaste<SEQParams>(mw, url, type_, data);
     else if(type == "FilterParams")
         doPaste<FilterParams>(mw, url, type_, data);
     else if(type == "ADnoteParameters")
@@ -325,6 +331,8 @@ std::string doClassCopy(std::string type, MiddleWare &mw, string url, string nam
         return doCopy<EnvelopeParams>(mw, url, name);
     else if(type == "LFOParams")
         return doCopy<LFOParams>(mw, url, name);
+    else if(type == "SEQParams")
+        return doCopy<SEQParams>(mw, url, name);
     else if(type == "FilterParams")
         return doCopy<FilterParams>(mw, url, name);
     else if(type == "ADnoteParameters")

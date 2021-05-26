@@ -12,6 +12,7 @@
 #include "ModFilter.h"
 #include "Envelope.h"
 #include "LFO.h"
+#include "SEQ.h"
 #include "../Misc/Util.h"
 #include "../Misc/Allocator.h"
 #include "../Params/FilterParams.h"
@@ -34,6 +35,7 @@ ModFilter::ModFilter(const FilterParams &pars_,
     left(nullptr),
     right(nullptr),
     env(nullptr),
+    seq(nullptr),
     lfo(nullptr)
 {
     tracking = pars.getfreqtracking(notefreq);
@@ -59,6 +61,11 @@ void ModFilter::addMod(LFO &lfo_)
     lfo = &lfo_;
 }
 
+void ModFilter::addMod(SEQ &seq_)
+{
+    seq = &seq_;
+}
+
 void ModFilter::addMod(Envelope &env_)
 {
     env = &env_;
@@ -81,6 +88,7 @@ void ModFilter::update(float relfreq, float relq)
     const float Fc = baseFreq
                    + sense
                    + (env ? env->envout() : 0)
+                   + (seq ? seq->seqout() : 0)
                    + (lfo ? lfo->lfoout() : 0);
 
     const float Fc_mod = Fc + relfreq + tracking;

@@ -3,6 +3,7 @@ set(zynaddsubfx_synth_SRCS
 	Synth/ADnote.cpp
 	Synth/Envelope.cpp
 	Synth/LFO.cpp
+	Synth/SEQ.cpp
     Synth/ModFilter.cpp
 	Synth/OscilGen.cpp
 	Synth/PADnote.cpp

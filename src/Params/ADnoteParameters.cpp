@@ -18,6 +18,7 @@
 #include "ADnoteParameters.h"
 #include "EnvelopeParams.h"
 #include "LFOParams.h"
+#include "SEQParams.h"
 #include "../Misc/Time.h"
 #include "../Misc/XMLwrapper.h"
 #include "../DSP/FFTwrapper.h"
@@ -60,8 +61,11 @@ static const Ports voicePorts = {
             data.forward();
         rBOIL_END},
     rRecurp(FreqLfo, "Frequency LFO"),
+    rRecurp(FreqSeq, "Frequency Sequencer"),
     rRecurp(AmpLfo, "Amplitude LFO"),
+    rRecurp(AmpSeq, "Amplitude Sequencer"),
     rRecurp(FilterLfo, "Filter LFO"),
+    rRecurp(FilterSeq, "Filter Sequencer"),
     rRecurp(FreqEnvelope,   "Frequency Envelope"),
     rRecurp(AmpEnvelope,    "Amplitude Envelope"),
     rRecurp(FilterEnvelope, "Filter Envelope"),
@@ -123,6 +127,8 @@ static const Ports voicePorts = {
         "Frequency Envelope Enable"),
     rToggle(PFreqLfoEnabled,      rShort("enable"),     rDefault(false),
         "Frequency LFO Enable"),
+    rToggle(PFreqSeqEnabled,      rShort("enable"),     rDefault(false),
+        "Frequency Sequencer Enable"),
 
     //Amplitude Stuff
     rParamZyn(PPanning,                  rShort("pan."), rDefault(64),
@@ -159,6 +165,8 @@ static const Ports voicePorts = {
         "Amplitude Envelope Enable"),
     rToggle(PAmpLfoEnabled,      rShort("enable"), rDefault(false),
         "Amplitude LFO Enable"),
+    rToggle(PAmpSeqEnabled,      rShort("enable"), rDefault(false),
+        "Amplitude Sequencer Enable"),
 
     //Filter Stuff
     rToggle(PFilterEnabled,         rShort("enable"), rDefault(false),
@@ -167,6 +175,8 @@ static const Ports voicePorts = {
         "Filter Envelope Enable"),
     rToggle(PFilterLfoEnabled,      rShort("enable"), rDefault(false),
         "Filter LFO Enable"),
+    rToggle(PFilterSeqEnabled,      rShort("enable"), rDefault(false),
+        "Filter Sequencer Enable"),
     rParamZyn(PFilterVelocityScale,         rShort("v.scale"), rDefault(0),
         "Filter Velocity Magnitude"),
     rParamZyn(PFilterVelocityScaleFunction, rShort("v.sense"), rDefault(64),
@@ -329,8 +339,11 @@ static const Ports voicePorts = {
 static const Ports globalPorts = {
     rRecurp(Reson, "Resonance"),
     rRecurp(FreqLfo, "Frequency LFO"),
+    rRecurp(FreqSeq, "Frequency Sequencer"),
     rRecurp(AmpLfo, "Amplitude LFO"),
+    rRecurp(AmpSeq, "Amplitude Sequencer"),
     rRecurp(FilterLfo, "Filter LFO"),
+    rRecurp(FilterSeq, "Filter Sequencer"),
     rRecurp(FreqEnvelope, "Frequency Envelope"),
     rRecurp(AmpEnvelope, "Frequency Envelope"),
     rRecurp(FilterEnvelope, "Frequency Envelope"),
@@ -481,15 +494,18 @@ ADnoteGlobalParam::ADnoteGlobalParam(const AbsTime *time_) :
     FreqEnvelope = new EnvelopeParams(0, 0, time_);
     FreqEnvelope->init(ad_global_freq);
     FreqLfo = new LFOParams(ad_global_freq, time_);
+    FreqSeq = new SEQParams(ad_global_freq, time_);
 
     AmpEnvelope = new EnvelopeParams(64, 1, time_);
     AmpEnvelope->init(ad_global_amp);
     AmpLfo = new LFOParams(ad_global_amp, time_);
+    AmpSeq = new SEQParams(ad_global_amp, time_);
 
     GlobalFilter   = new FilterParams(ad_global_filter, time_);
     FilterEnvelope = new EnvelopeParams(0, 1, time_);
     FilterEnvelope->init(ad_global_filter);
     FilterLfo = new LFOParams(ad_global_filter, time_);
+    FilterSeq = new SEQParams(ad_global_filter, time_);
     Reson     = new Resonance();
 }
 
@@ -513,6 +529,7 @@ void ADnoteGlobalParam::defaults()
     PDetuneType   = 1;
     FreqEnvelope->defaults();
     FreqLfo->defaults();
+    FreqSeq->defaults();
     PBandwidth = 64;
 
     /* Amplitude Global Parameters */
@@ -521,6 +538,7 @@ void ADnoteGlobalParam::defaults()
     PAmpVelocityScaleFunction = 64;
     AmpEnvelope->defaults();
     AmpLfo->defaults();
+    AmpSeq->defaults();
     Fadein_adjustment = FADEIN_ADJUSTMENT_SCALE;
     PPunchStrength = 0;
     PPunchTime     = 60;
@@ -534,6 +552,7 @@ void ADnoteGlobalParam::defaults()
     GlobalFilter->defaults();
     FilterEnvelope->defaults();
     FilterLfo->defaults();
+    FilterSeq->defaults();
     Reson->defaults();
 }
 
@@ -577,13 +596,16 @@ void ADnoteVoiceParam::defaults()
     PCoarseDetune             = 0;
     PDetuneType               = 0;
     PFreqLfoEnabled           = 0;
+    PFreqSeqEnabled           = 0;
     PFreqEnvelopeEnabled      = 0;
     PAmpEnvelopeEnabled       = 0;
     PAmpLfoEnabled            = 0;
+    PAmpSeqEnabled            = 0;
     PAmpVelocityScaleFunction = 127;
     PFilterEnabled            = 0;
     PFilterEnvelopeEnabled    = 0;
     PFilterLfoEnabled         = 0;
+    PFilterSeqEnabled         = 0;
     PFilterVelocityScale = 0;
     PFilterVelocityScaleFunction = 64;
     PFMEnabled                = FMTYPE::NONE;
@@ -606,13 +628,16 @@ void ADnoteVoiceParam::defaults()
 
     AmpEnvelope->defaults();
     AmpLfo->defaults();
+    AmpSeq->defaults();
 
     FreqEnvelope->defaults();
     FreqLfo->defaults();
+    FreqSeq->defaults();
 
     VoiceFilter->defaults();
     FilterEnvelope->defaults();
     FilterLfo->defaults();
+    FilterSeq->defaults();
 
     FMFreqEnvelope->defaults();
     FMAmpEnvelope->defaults();
@@ -638,15 +663,18 @@ void ADnoteVoiceParam::enable(const SYNTH_T &synth, FFTwrapper *fft,
     AmpEnvelope = new EnvelopeParams(64, 1, time);
     AmpEnvelope->init(ad_voice_amp);
     AmpLfo = new LFOParams(ad_voice_amp, time);
+    AmpSeq = new SEQParams(ad_voice_amp, time);
 
     FreqEnvelope = new EnvelopeParams(0, 0, time);
     FreqEnvelope->init(ad_voice_freq);
     FreqLfo = new LFOParams(ad_voice_freq, time);
+    FreqSeq = new SEQParams(ad_voice_freq, time);
 
     VoiceFilter    = new FilterParams(ad_voice_filter, time);
     FilterEnvelope = new EnvelopeParams(0, 0, time);
     FilterEnvelope->init(ad_voice_filter);
     FilterLfo = new LFOParams(ad_voice_filter, time);
+    FilterSeq = new SEQParams(ad_voice_filter, time);
 
     FMFreqEnvelope = new EnvelopeParams(0, 0, time);
     FMFreqEnvelope->init(ad_voice_fm_freq);
@@ -693,13 +721,16 @@ void ADnoteVoiceParam::kill()
 
     delete AmpEnvelope;
     delete AmpLfo;
+    delete AmpSeq;
 
     delete FreqEnvelope;
     delete FreqLfo;
+    delete FreqSeq;
 
     delete VoiceFilter;
     delete FilterEnvelope;
     delete FilterLfo;
+    delete FilterSeq;
 
     delete FMFreqEnvelope;
     delete FMAmpEnvelope;
@@ -710,11 +741,14 @@ ADnoteGlobalParam::~ADnoteGlobalParam()
 {
     delete FreqEnvelope;
     delete FreqLfo;
+    delete FreqSeq;
     delete AmpEnvelope;
     delete AmpLfo;
+    delete AmpSeq;
     delete GlobalFilter;
     delete FilterEnvelope;
     delete FilterLfo;
+    delete FilterSeq;
     delete Reson;
 }
 
@@ -798,7 +832,13 @@ void ADnoteVoiceParam::add2XML(XMLwrapper& xml, bool fmoscilused)
         AmpLfo->add2XML(xml);
         xml.endbranch();
     }
-    xml.endbranch();
+    xml.addparbool("amp_seq_enabled", PAmpSeqEnabled);
+    if((PAmpSeqEnabled != 0) || (!xml.minimal)) {
+        xml.beginbranch("AMPLITUDE_SEQ");
+        AmpSeq->add2XML(xml);
+        xml.endbranch();
+    }
+    xml.endbranch(); // AMPLITUDE_PARAMETERS
 
     xml.beginbranch("FREQUENCY_PARAMETERS");
     xml.addparbool("fixed_freq", Pfixedfreq);
@@ -822,7 +862,13 @@ void ADnoteVoiceParam::add2XML(XMLwrapper& xml, bool fmoscilused)
         FreqLfo->add2XML(xml);
         xml.endbranch();
     }
-    xml.endbranch();
+    xml.addparbool("freq_seq_enabled", PFreqSeqEnabled);
+    if((PFreqSeqEnabled != 0) || (!xml.minimal)) {
+        xml.beginbranch("FREQUENCY_SEQ");
+        FreqSeq->add2XML(xml);
+        xml.endbranch();
+    }
+    xml.endbranch(); // FREQUENCY_PARAMETERS
 
 
     if((PFilterEnabled != 0) || (!xml.minimal)) {
@@ -848,7 +894,15 @@ void ADnoteVoiceParam::add2XML(XMLwrapper& xml, bool fmoscilused)
             FilterLfo->add2XML(xml);
             xml.endbranch();
         }
-        xml.endbranch();
+
+        xml.addparbool("filter_seq_enabled",
+                        PFilterSeqEnabled);
+        if((PFilterSeqEnabled != 0) || (!xml.minimal)) {
+            xml.beginbranch("FILTER_SEQ");
+            FilterSeq->add2XML(xml);
+            xml.endbranch();
+        }
+        xml.endbranch(); // FILTER_PARAMETERS
     }
 
     if((PFMEnabled != FMTYPE::NONE) || (fmoscilused != 0)
@@ -886,8 +940,8 @@ void ADnoteVoiceParam::add2XML(XMLwrapper& xml, bool fmoscilused)
         FmGn->add2XML(xml);
         xml.endbranch();
 
-        xml.endbranch();
-        xml.endbranch();
+        xml.endbranch(); // MODULATOR
+        xml.endbranch(); // FM_PARAMETERS
     }
 }
 
@@ -913,7 +967,12 @@ void ADnoteGlobalParam::add2XML(XMLwrapper& xml)
     xml.beginbranch("AMPLITUDE_LFO");
     AmpLfo->add2XML(xml);
     xml.endbranch();
+
+    xml.beginbranch("AMPLITUDE_SEQ");
+    AmpSeq->add2XML(xml);
     xml.endbranch();
+    
+    xml.endbranch(); // AMPLITUDE_PARAMETERS
 
     xml.beginbranch("FREQUENCY_PARAMETERS");
     xml.addpar("detune", PDetune);
@@ -930,7 +989,12 @@ void ADnoteGlobalParam::add2XML(XMLwrapper& xml)
     xml.beginbranch("FREQUENCY_LFO");
     FreqLfo->add2XML(xml);
     xml.endbranch();
+
+    xml.beginbranch("FREQUENCY_SEQ");
+    FreqSeq->add2XML(xml);
     xml.endbranch();
+    
+    xml.endbranch(); // FREQUENCY_PARAMETERS
 
 
     xml.beginbranch("FILTER_PARAMETERS");
@@ -948,7 +1012,12 @@ void ADnoteGlobalParam::add2XML(XMLwrapper& xml)
     xml.beginbranch("FILTER_LFO");
     FilterLfo->add2XML(xml);
     xml.endbranch();
+
+    xml.beginbranch("FILTER_SEQ");
+    FilterSeq->add2XML(xml);
     xml.endbranch();
+    
+    xml.endbranch(); // FILTER_PARAMETERS
 
     xml.beginbranch("RESONANCE");
     Reson->add2XML(xml);
@@ -1007,7 +1076,12 @@ void ADnoteGlobalParam::getfromXML(XMLwrapper& xml)
             xml.exitbranch();
         }
 
-        xml.exitbranch();
+        if(xml.enterbranch("AMPLITUDE_SEQ")) {
+            AmpSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+
+        xml.exitbranch(); // AMPLITUDE_PARAMETERS
     }
 
     if(xml.enterbranch("FREQUENCY_PARAMETERS")) {
@@ -1024,7 +1098,12 @@ void ADnoteGlobalParam::getfromXML(XMLwrapper& xml)
         FreqLfo->getfromXML(xml);
         xml.exitbranch();
 
-        xml.exitbranch();
+        if(xml.enterbranch("FREQUENCY_SEQ")) {
+            FreqSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+
+        xml.exitbranch(); // FREQUENCY_PARAMETERS
     }
 
 
@@ -1046,7 +1125,13 @@ void ADnoteGlobalParam::getfromXML(XMLwrapper& xml)
         xml.enterbranch("FILTER_LFO");
         FilterLfo->getfromXML(xml);
         xml.exitbranch();
-        xml.exitbranch();
+
+        if(xml.enterbranch("FILTER_SEQ")) {
+            FilterSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+        
+        xml.exitbranch(); // FILTER_PARAMETERS
     }
 
     if(xml.enterbranch("RESONANCE")) {
@@ -1141,6 +1226,10 @@ void ADnoteVoiceParam::paste(ADnoteVoiceParam &a)
 
     RCopy(AmpLfo);
 
+    copy(PAmpSeqEnabled);
+
+    RCopy(AmpSeq);
+
     copy(Pfixedfreq);
     copy(PfixedfreqET);
     copy(PDetune);
@@ -1155,6 +1244,10 @@ void ADnoteVoiceParam::paste(ADnoteVoiceParam &a)
     copy(PFreqLfoEnabled);
 
     RCopy(FreqLfo);
+    
+    copy(PFreqSeqEnabled);
+
+    RCopy(FreqSeq);
 
     RCopy(VoiceFilter);
 
@@ -1167,6 +1260,10 @@ void ADnoteVoiceParam::paste(ADnoteVoiceParam &a)
     copy(PFilterVelocityScaleFunction);
 
     RCopy(FilterLfo);
+    
+    copy(PFilterSeqEnabled);
+
+    RCopy(FilterSeq);
 
     copy(PFMVoice);
     copy(FMvolume);
@@ -1209,6 +1306,7 @@ void ADnoteGlobalParam::paste(ADnoteGlobalParam &a)
 
     RCopy(AmpEnvelope);
     RCopy(AmpLfo);
+    RCopy(AmpSeq);
 
     copy(PDetune);
     copy(PCoarseDetune);
@@ -1217,6 +1315,7 @@ void ADnoteGlobalParam::paste(ADnoteGlobalParam &a)
 
     RCopy(FreqEnvelope);
     RCopy(FreqLfo);
+    RCopy(FreqSeq);
 
     copy(PFilterVelocityScale);
     copy(PFilterVelocityScaleFunction);
@@ -1224,6 +1323,7 @@ void ADnoteGlobalParam::paste(ADnoteGlobalParam &a)
     RCopy(GlobalFilter);
     RCopy(FilterEnvelope);
     RCopy(FilterLfo);
+    RCopy(FilterSeq);
     RCopy(Reson);
 
     if ( time ) {
@@ -1295,7 +1395,13 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
             AmpLfo->getfromXML(xml);
             xml.exitbranch();
         }
-        xml.exitbranch();
+
+        PAmpSeqEnabled = xml.getparbool("amp_seq_enabled", PAmpSeqEnabled);
+        if(xml.enterbranch("AMPLITUDE_SEQ")) {
+            AmpSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+        xml.exitbranch(); // AMPLITUDE_PARAMETERS
     }
 
     if(xml.enterbranch("FREQUENCY_PARAMETERS")) {
@@ -1320,7 +1426,14 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
             FreqLfo->getfromXML(xml);
             xml.exitbranch();
         }
-        xml.exitbranch();
+        
+        PFreqSeqEnabled = xml.getparbool("freq_seq_enabled", PFreqSeqEnabled);
+        if(xml.enterbranch("FREQUENCY_SEQ")) {
+            FreqSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+        
+        xml.exitbranch(); // FREQUENCY_PARAMETERS
     }
 
     if(xml.enterbranch("FILTER_PARAMETERS")) {
@@ -1347,7 +1460,14 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
             FilterLfo->getfromXML(xml);
             xml.exitbranch();
         }
-        xml.exitbranch();
+
+        PFilterSeqEnabled = xml.getparbool("filter_seq_enabled",
+                                            PFilterSeqEnabled);
+        if(xml.enterbranch("FILTER_SEQ")) {
+            FilterSeq->getfromXML(xml);
+            xml.exitbranch();
+        }
+        xml.exitbranch(); // FILTER_PARAMETERS
     }
 
     if(xml.enterbranch("FM_PARAMETERS")) {
@@ -1394,9 +1514,9 @@ void ADnoteVoiceParam::getfromXML(XMLwrapper& xml, unsigned nvoice)
                 xml.exitbranch();
             }
 
-            xml.exitbranch();
+            xml.exitbranch(); // MODULATOR
         }
-        xml.exitbranch();
+        xml.exitbranch(); // FM_PARAMETERS
     }
 }
 

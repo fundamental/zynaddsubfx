@@ -4,6 +4,7 @@ set(zynaddsubfx_params_SRCS
 	Params/EnvelopeParams.cpp
 	Params/FilterParams.cpp
 	Params/LFOParams.cpp
+	Params/SEQParams.cpp
 	Params/PADnoteParameters.cpp
 	Params/Presets.cpp
 	Params/PresetsArray.cpp
