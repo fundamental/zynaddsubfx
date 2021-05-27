@@ -67,6 +67,7 @@ class  Part;
 
 class  Filter;
 class  AnalogFilter;
+class  CombFilter;
 class  SVFilter;
 class  FormantFilter;
 class  ModFilter;
