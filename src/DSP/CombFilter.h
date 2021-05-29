@@ -44,6 +44,7 @@ class CombFilter:public Filter
 
         float tanhX(const float x);
         float sampleLerp(float *smp, float pos);
+        float sampleHermite(float *smp, float pos);
 
         float gainfwd;
         float gainbwd;
@@ -54,7 +55,8 @@ class CombFilter:public Filter
         Allocator &memory;
         int mem_size;
 
-        Value_Smoothing_Filter filter_freq_smoothing[5];
+        Value_Smoothing_Filter delayfwd_smoothing;
+        Value_Smoothing_Filter delaybwd_smoothing;
 };
 
 }
