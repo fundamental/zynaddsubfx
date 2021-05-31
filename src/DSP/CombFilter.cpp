@@ -50,13 +50,13 @@ inline float CombFilter::sampleLerp(float *smp, float pos) {
     return smp[poshi] + poslo * (smp[poshi+1]-smp[poshi]); 
 }
 
-float sampleLagrange3o4p(float *smp, float pos) {
+inline float sampleLagrange3o4p(float *smp, float pos) {
     // 4-point, 3rd-order Lagrange (x-form)
     float c0 = smp[0];
-    float c1 = smp[1] - 1/3.0*smp[-1] - 1/2.0*smp[0] - 1/6.0*smp[2];
-    float c2 = 1/2.0*(smp[-1]+smp[1]) - smp[0];
-    float c3 = 1/6.0*(smp[2]-smp[-1]) + 1/2.0*(smp[0]-smp[1]);
-    return ((c3*pos+c2)*pos+c1)*pos+c0;
+    float c1 = smp[1] - 0.33333333333f*smp[-1] - 0.5f*smp[0] - 0.16666666666f*smp[2];
+    float c2 = 0.5f*(smp[-1]+smp[1]) - smp[0];
+    float c3 = 0.16666666666f*(smp[2]-smp[-1]) + 0.5f*(smp[0]-smp[1]);
+    return 16.0f*(((c3*pos+c2)*pos+c1)*pos+c0);
 }
 
 void CombFilter::filterout(float *smp)
@@ -71,8 +71,8 @@ void CombFilter::filterout(float *smp)
     for (int i = 0; i < buffersize; i ++)
     {
         smp[i] = smp[i]*gain + 
-            gainfwd * sampleLerp( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
-            gainbwd * sampleLerp(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
+            gainfwd * sampleLagrange3o4p( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
+            gainbwd * sampleLagrange3o4p(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
         smp[i] *= outgain;
     }
     memmove(&output[0], &output[buffersize-1], sizeof(output)-buffersize);
@@ -95,7 +95,7 @@ void CombFilter::setfreq(float freq)
 
 void CombFilter::setq(float q_)
 {
-    q = 10.0f*q_;
+    q = 100.0f*q_;
 }
 
 void CombFilter::setgain(float dBgain)
