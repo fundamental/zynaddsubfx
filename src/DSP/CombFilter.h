@@ -44,7 +44,6 @@ class CombFilter:public Filter
 
         float tanhX(const float x);
         float sampleLerp(float *smp, float pos);
-        float sampleHermite(float *smp, float pos);
 
         float gainfwd;
         float gainbwd;

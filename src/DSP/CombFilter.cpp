@@ -16,7 +16,7 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
     unsigned int srate, int bufsize)
     :Filter(srate, bufsize), memory(*alloc), sr(srate), gain(1.0f), type(Ftype)
 {
-    mem_size = sr/30;
+    mem_size = sr/24;
     input = (float*)memory.alloc_mem(mem_size);
     output = (float*)memory.alloc_mem(mem_size);
     memset(input, 0, sizeof(input));
@@ -50,22 +50,13 @@ inline float CombFilter::sampleLerp(float *smp, float pos) {
     return smp[poshi] + poslo * (smp[poshi+1]-smp[poshi]); 
 }
 
-inline float interp_cubic(float x0, float x1, float x2, float x3, float mu) {
-   // http://paulbourke.net/miscellaneous/interpolation/
-   float mu2 = mu*mu;
-   float a0 = -0.5*x0 + 1.5*x1 - 1.5*x2 + 0.5*x3;
-   float a1 = x0 - 2.5*x1 + 2*x2 - 0.5*x3;
-   float a2 = -0.5*x0 + 0.5*x2;
-   float a3 = x1;
-   return(a0*mu*mu2+a1*mu2+a2*mu+a3);
-}
-
-inline float CombFilter::sampleHermite(float *smp, float pos) {
-    int poshi = (int)pos; // integer part
-    float poslo = pos - (float) poshi; // decimal part
-    // linear interpolation between samples
-    return smp[poshi] + poslo * (smp[poshi+1]-smp[poshi]); 
-    interp_cubic(smp[poshi-1], smp[poshi], smp[poshi+1], smp[poshi+2], poslo); // smp[poshi+2] could be beyond borders at highes freq
+float sampleLagrange3o4p(float *smp, float pos) {
+    // 4-point, 3rd-order Lagrange (x-form)
+    float c0 = smp[0];
+    float c1 = smp[1] - 1/3.0*smp[-1] - 1/2.0*smp[0] - 1/6.0*smp[2];
+    float c2 = 1/2.0*(smp[-1]+smp[1]) - smp[0];
+    float c3 = 1/6.0*(smp[2]-smp[-1]) + 1/2.0*(smp[0]-smp[1]);
+    return ((c3*pos+c2)*pos+c1)*pos+c0;
 }
 
 void CombFilter::filterout(float *smp)
@@ -80,8 +71,8 @@ void CombFilter::filterout(float *smp)
     for (int i = 0; i < buffersize; i ++)
     {
         smp[i] = smp[i]*gain + 
-            gainfwd * sampleHermite( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
-            gainbwd * sampleHermite(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
+            gainfwd * sampleLerp( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
+            gainbwd * sampleLerp(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
         smp[i] *= outgain;
     }
     memmove(&output[0], &output[buffersize-1], sizeof(output)-buffersize);
@@ -95,8 +86,9 @@ void CombFilter::setfreq_and_q(float frequency, float q)
     setq(q);
 }
 
-void CombFilter::setfreq(float ff)
+void CombFilter::setfreq(float freq)
 {
+    float ff = limit(freq, 25.0f, 40000.0f);
     delayfwd = sr/ff;
     delaybwd = sr/ff;
 }
