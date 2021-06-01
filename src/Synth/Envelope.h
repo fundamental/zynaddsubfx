@@ -43,6 +43,7 @@ class Envelope
         int   envsustain;    //"-1" means disabled
         float envdt[MAX_ENVELOPE_POINTS]; //seconds
         float envval[MAX_ENVELOPE_POINTS]; // [0.0f .. 1.0f]
+        float envcp[MAX_ENVELOPE_POINTS-1][2]; // [0.0f .. 1.0f]
         float envstretch;
         int   linearenvelope;
         int   mode;

@@ -229,7 +229,38 @@ static const rtosc::Ports localPorts = {
               }
         }
         rEnd},
-    {"envval", rDoc("Envelope Values"), NULL,
+    {"envcp", rShort("bezier") rDoc("Envelope Control Points"), NULL,
+        rBegin;
+        const int N = MAX_ENVELOPE_POINTS-1;
+        const int M = rtosc_narguments(msg);
+        if(M == 0) {
+            rtosc_arg_t args[N];
+            char arg_types[4*(N+1)] = {};
+            for(int i=0; i<N; ++i) {
+                for (int j=0; i<4; ++j) {
+                    args[4*i+j].f    = env->envcp[i][j];
+                    arg_types[4*i+j] = 'f';
+                }
+            }
+            d.replyArray(d.loc, arg_types, args);
+        } else {
+            for(int i=0; i<N && i<M; ++i) {
+                for(int j=0; j<4; ++j) {
+                    env->envcp[i][j] = limit(roundf(rtosc_argument(msg,4*i+j).f), 0.0f, 1.0f);
+                }
+            }
+            env->updatenonfree();
+            char part_loc[128];
+            strncpy(part_loc, d.loc, sizeof(part_loc));
+            part_loc[sizeof(part_loc) - 1] = '\0';
+            char *end = strrchr(part_loc, '/');
+            if(end) {
+              end[1] = '\0';
+              d.broadcast("/damage", "s", part_loc);
+            }
+        }
+        rEnd},
+        {"envval", rDoc("Envelope Values"), NULL,
         rBegin;
         const int N = MAX_ENVELOPE_POINTS;
         const int M = rtosc_narguments(msg);
@@ -256,19 +287,20 @@ static const rtosc::Ports localPorts = {
                 }
         }
         rEnd},
-
+    rArrayFF(envcp, MAX_ENVELOPE_POINTS-1),
     {"addPoint:i", rProp(internal) rDoc("Add point to envelope"), NULL,
         rBegin;
         const int curpoint = rtosc_argument(msg, 0).i;
         //int curpoint=freeedit->lastpoint;
         if (curpoint<0 || curpoint>env->Penvpoints || env->Penvpoints>=MAX_ENVELOPE_POINTS)
             return;
-
-        for (int i=env->Penvpoints; i>=curpoint+1; i--) {
+        int i;
+        for (i=env->Penvpoints; i>=curpoint+1; i--) {
             env->envdt[i]=env->envdt[i-1];
             env->Penvval[i]=env->Penvval[i-1];
         }
-
+        env->Penvval[i]=env->Penvval[i-1] + 0.2f * (env->Penvval[i+1] - env->Penvval[i-1]);
+        
         if (curpoint==0)
             env->envdt[1]=dTREAL(64);
 
