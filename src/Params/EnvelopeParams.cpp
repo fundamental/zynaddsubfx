@@ -189,6 +189,7 @@ static const rtosc::Ports localPorts = {
         } else {
             for(int i=0; i<N && i<M; ++i) {
                 env->envdt[i] = (rtosc_argument(msg, i).f)/1000; //store as seconds in member variable
+                //~ if (i<3) printf("Port envdt  i: %d   envdt[i]: %f\n ",i, env->envdt[i]);
             }
             env->updatenonfree();
               char part_loc[128];
@@ -217,6 +218,7 @@ static const rtosc::Ports localPorts = {
         } else {
             for(int i=0; i<N && i<M; ++i) {
                 env->envdt[i] = (rtosc_argument(msg, i).f);
+                //~ printf("i: %d   envdt[i]: %f \n",i, env->envdt[i]);
             }
             env->updatenonfree();
               char part_loc[128];
@@ -231,23 +233,20 @@ static const rtosc::Ports localPorts = {
         rEnd},
     {"envcp", rShort("bezier") rDoc("Envelope Control Points"), NULL,
         rBegin;
-        const int N = MAX_ENVELOPE_POINTS-1;
+        const int N = MAX_ENVELOPE_POINTS;
         const int M = rtosc_narguments(msg);
         if(M == 0) {
             rtosc_arg_t args[N];
-            char arg_types[4*(N+1)] = {};
+            char arg_types[N] = {};
             for(int i=0; i<N; ++i) {
-                for (int j=0; i<4; ++j) {
-                    args[4*i+j].f    = env->envcp[i][j];
-                    arg_types[4*i+j] = 'f';
-                }
+                    args[i].f    = env->envcp[i];
+                    arg_types[i] = 'f';
             }
             d.replyArray(d.loc, arg_types, args);
         } else {
             for(int i=0; i<N && i<M; ++i) {
-                for(int j=0; j<4; ++j) {
-                    env->envcp[i][j] = limit(roundf(rtosc_argument(msg,4*i+j).f), 0.0f, 1.0f);
-                }
+                env->envcp[i] = limit(rtosc_argument(msg,i).f, -2.0f, 2.0f);
+
             }
             env->updatenonfree();
             char part_loc[128];
@@ -260,7 +259,7 @@ static const rtosc::Ports localPorts = {
             }
         }
         rEnd},
-        {"envval", rDoc("Envelope Values"), NULL,
+    {"envval", rDoc("Envelope Values"), NULL,
         rBegin;
         const int N = MAX_ENVELOPE_POINTS;
         const int M = rtosc_narguments(msg);
@@ -275,6 +274,7 @@ static const rtosc::Ports localPorts = {
         } else {
             for(int i=0; i<N && i<M; ++i) {
                 env->Penvval[i] = limit(roundf(rtosc_argument(msg,i).f*127.0f), 0.0f, 127.0f);
+                //~ if (i<3) printf("Port envval  i: %d   Penvval[i]: %f \n",i, env->Penvval[i]);
             }
             env->updatenonfree();
               char part_loc[128];
@@ -287,7 +287,7 @@ static const rtosc::Ports localPorts = {
                 }
         }
         rEnd},
-    rArrayFF(envcp, MAX_ENVELOPE_POINTS-1),
+    //~ rArrayFF(envcp, MAX_ENVELOPE_POINTS-1),
     {"addPoint:i", rProp(internal) rDoc("Add point to envelope"), NULL,
         rBegin;
         const int curpoint = rtosc_argument(msg, 0).i;

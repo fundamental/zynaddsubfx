@@ -133,6 +133,21 @@ void Envelope::watch(float time, float value)
     }
 }
 
+inline float lerp(float a, float b, float t) 
+{
+    return a + (b-a)*t;
+}
+
+inline float bezier(float a, float bRel, float c, float w2) 
+{
+    // square bezier direct form p = (1-t)^2 *P0 + 2*(1-t)*t*P1 + t*t*P2
+    // formula in zest visualization:
+    // y[i]+y[i-1])/2 + ((y[i]-y[i-1]).abs+0.1)*4*c[i]
+    float w1 = 1.0f - w2;
+    float b = (a+c) + (fabs(c-a)+0.1)*8.0f*bRel;
+    return w1*w1*a + w1*w2*b + w2*w2*c;
+}
+
 /*
  * Envelope Output
  */
@@ -189,9 +204,8 @@ float Envelope::envout(bool doWatch)
     }
     if(inct >= 1.0f)
         out = envval[currentpoint];
-    else
-        out = envval[currentpoint - 1]
-              + (envval[currentpoint] - envval[currentpoint - 1]) * t;
+    else // interpolation
+        out = bezier(envval[currentpoint - 1], envcp[currentpoint-1], envval[currentpoint], t);
 
     t += inct;
 
