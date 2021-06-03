@@ -299,7 +299,7 @@ static const rtosc::Ports localPorts = {
             env->envdt[i]=env->envdt[i-1];
             env->Penvval[i]=env->Penvval[i-1];
         }
-        env->Penvval[i]=env->Penvval[i-1] + 0.2f * (env->Penvval[i+1] - env->Penvval[i-1]);
+        //~ env->Penvval[i]=env->Penvval[i-1] + 0.2f * (env->Penvval[i+1] - env->Penvval[i-1]);
         
         if (curpoint==0)
             env->envdt[1]=dTREAL(64);
