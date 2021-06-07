@@ -68,16 +68,16 @@ void CombFilter::filterout(float *smp)
     delaybwd_smoothing.apply(delaybwdbuf, buffersize, delaybwd);
 
     memmove(&input[0], &input[buffersize-1], mem_size-buffersize);
-    memmove(&input[mem_size-1-buffersize], smp, buffersize);
+    memcpy(&input[mem_size-1-buffersize], smp, buffersize);
     for (int i = 0; i < buffersize; i ++)
     {
         smp[i] = smp[i]*gain + 
-            gainfwd * sampleLagrange3o4p( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
-            gainbwd * sampleLagrange3o4p(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
+            gainfwd * sampleLerp( input, float(mem_size-buffersize+i)-delayfwdbuf[i]) + 
+            gainbwd * sampleLerp(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
         smp[i] *= outgain;
     }
     memmove(&output[0], &output[buffersize-1], mem_size-buffersize);
-    memmove(&output[mem_size-1-buffersize], smp, buffersize);
+    memcpy(&output[mem_size-1-buffersize], smp, buffersize);
     
 }
 
