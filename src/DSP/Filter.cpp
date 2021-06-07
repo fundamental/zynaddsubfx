@@ -57,6 +57,7 @@ Filter *Filter::generate(Allocator &memory, const FilterParams *pars,
             break;
         case 3:
             filter = memory.alloc<CombFilter>(&memory, Ftype, 1000.0f, pars->getq(), srate, bufsize);
+            break;
         default:
             filter = memory.alloc<AnalogFilter>(Ftype, 1000.0f, pars->getq(), Fstages, srate, bufsize);
             if((Ftype >= 6) && (Ftype <= 8))

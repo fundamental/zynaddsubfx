@@ -16,11 +16,12 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
     unsigned int srate, int bufsize)
     :Filter(srate, bufsize), memory(*alloc), sr(srate), gain(1.0f), type(Ftype)
 {
-    mem_size = sr/24;
+    //worst case: looking back from smps[0] at 25Hz using higher order interpolation
+    mem_size = sr/25 + buffersize+2; 
     input = (float*)memory.alloc_mem(mem_size);
     output = (float*)memory.alloc_mem(mem_size);
-    memset(input, 0, sizeof(input));
-    memset(output, 0, sizeof(output));
+    memset(input, 0, mem_size);
+    memset(output, 0, mem_size);
     
     delayfwd_smoothing.sample_rate(srate);
     delayfwd_smoothing.reset(sr/1000.0f);
@@ -75,8 +76,8 @@ void CombFilter::filterout(float *smp)
             gainbwd * sampleLagrange3o4p(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
         smp[i] *= outgain;
     }
-    memmove(&output[0], &output[buffersize-1], sizeof(output)-buffersize);
-    memmove(&output[sizeof(output)-1-buffersize], smp, buffersize);
+    memmove(&output[0], &output[buffersize-1], mem_size-buffersize);
+    memmove(&output[mem_size-1-buffersize], smp, buffersize);
     
 }
 
