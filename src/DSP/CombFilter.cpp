@@ -27,6 +27,7 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
     delayfwd_smoothing.reset(sr/1000.0f);
     delaybwd_smoothing.sample_rate(srate);
     delaybwd_smoothing.reset(sr/1000.0f);
+    setfreq(Fq);
 }
 
 CombFilter::~CombFilter(void)
@@ -64,8 +65,16 @@ void CombFilter::filterout(float *smp)
 {
     float delayfwdbuf[buffersize];
     float delaybwdbuf[buffersize];
-    delayfwd_smoothing.apply(delayfwdbuf, buffersize, delayfwd);
-    delaybwd_smoothing.apply(delaybwdbuf, buffersize, delaybwd);
+
+    if(!delayfwd_smoothing.apply(delayfwdbuf, buffersize, delayfwd))
+        for(int i=0; i<buffersize; ++i)
+            delayfwdbuf[i] = delayfwd;
+    if(!delaybwd_smoothing.apply(delaybwdbuf, buffersize, delaybwd))
+        for(int i=0; i<buffersize; ++i)
+            delaybwdbuf[i] = delaybwd;
+    
+    
+    
 
     memmove(&input[0], &input[buffersize-1], mem_size-buffersize);
     memcpy(&input[mem_size-1-buffersize], smp, buffersize);
