@@ -18,10 +18,10 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
 {
     //worst case: looking back from smps[0] at 25Hz using higher order interpolation
     mem_size = sr/25 + buffersize+2; 
-    input = (float*)memory.alloc_mem(mem_size);
-    output = (float*)memory.alloc_mem(mem_size);
-    memset(input, 0, mem_size);
-    memset(output, 0, mem_size);
+    input = (float*)memory.alloc_mem(mem_size*sizeof(float));
+    output = (float*)memory.alloc_mem(mem_size*sizeof(float));
+    memset(input, 0, mem_size*sizeof(float));
+    memset(output, 0, mem_size*sizeof(float));
     
     delayfwd_smoothing.sample_rate(srate);
     delayfwd_smoothing.reset(sr/1000.0f);
@@ -73,11 +73,14 @@ void CombFilter::filterout(float *smp)
         for(int i=0; i<buffersize; ++i)
             delaybwdbuf[i] = delaybwd;
     
+    // TBD: dont move data, use smart pointer arithmetik
+    //writinghead -= buffersize;
+    //writinghead &= mem_size;
     
-    
-
-    memmove(&input[0], &input[buffersize-1], mem_size-buffersize);
-    memcpy(&input[mem_size-1-buffersize], smp, buffersize);
+    // shift the buffer content to the left
+    memmove(&input[0], &input[buffersize-1], (mem_size-buffersize)*sizeof(float));
+    // copy new input samples to the right end of the buffer
+    memcpy(&input[mem_size-1-buffersize], smp, buffersize*sizeof(float));
     for (int i = 0; i < buffersize; i ++)
     {
         smp[i] = smp[i]*gain + 
@@ -85,8 +88,10 @@ void CombFilter::filterout(float *smp)
             gainbwd * sampleLerp(output, float(mem_size-buffersize+i)-delayfwdbuf[i]); 
         smp[i] *= outgain;
     }
-    memmove(&output[0], &output[buffersize-1], mem_size-buffersize);
-    memcpy(&output[mem_size-1-buffersize], smp, buffersize);
+    //  shift the buffer content to the left
+    memmove(&output[0], &output[buffersize-1], (mem_size-buffersize)*sizeof(float));
+    // copy new output samples to the right end of the buffer
+    memcpy(&output[mem_size-1-buffersize], smp, buffersize*sizeof(float));
     
 }
 
