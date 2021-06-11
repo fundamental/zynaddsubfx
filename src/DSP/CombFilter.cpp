@@ -27,7 +27,7 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
     delayfwd_smoothing.reset(sr/1000.0f);
     delaybwd_smoothing.sample_rate(srate);
     delaybwd_smoothing.reset(sr/1000.0f);
-    setfreq(Fq);
+    setfreq_and_q(Ffreq, Fq);
 }
 
 CombFilter::~CombFilter(void)
@@ -66,21 +66,18 @@ void CombFilter::filterout(float *smp)
     float delayfwdbuf[buffersize];
     float delaybwdbuf[buffersize];
 
-    if(!delayfwd_smoothing.apply(delayfwdbuf, buffersize, delayfwd))
+    if(delayfwd_smoothing.apply(delayfwdbuf, buffersize, delayfwd))
         for(int i=0; i<buffersize; ++i)
             delayfwdbuf[i] = delayfwd;
-    if(!delaybwd_smoothing.apply(delaybwdbuf, buffersize, delaybwd))
+
+    if(delaybwd_smoothing.apply(delaybwdbuf, buffersize, delaybwd))
         for(int i=0; i<buffersize; ++i)
             delaybwdbuf[i] = delaybwd;
-    
-    // TBD: dont move data, use smart pointer arithmetik
-    //writinghead -= buffersize;
-    //writinghead &= mem_size;
-    
+
     // shift the buffer content to the left
-    memmove(&input[0], &input[buffersize-1], (mem_size-buffersize)*sizeof(float));
+    memmove(&input[0], &input[buffersize], (mem_size-buffersize)*sizeof(float));
     // copy new input samples to the right end of the buffer
-    memcpy(&input[mem_size-1-buffersize], smp, buffersize*sizeof(float));
+    memcpy(&input[mem_size-buffersize], smp, buffersize*sizeof(float));
     for (int i = 0; i < buffersize; i ++)
     {
         smp[i] = smp[i]*gain + 
@@ -89,9 +86,9 @@ void CombFilter::filterout(float *smp)
         smp[i] *= outgain;
     }
     //  shift the buffer content to the left
-    memmove(&output[0], &output[buffersize-1], (mem_size-buffersize)*sizeof(float));
+    memmove(&output[0], &output[buffersize], (mem_size-buffersize)*sizeof(float));
     // copy new output samples to the right end of the buffer
-    memcpy(&output[mem_size-1-buffersize], smp, buffersize*sizeof(float));
+    memcpy(&output[mem_size-buffersize], smp, buffersize*sizeof(float));
     
 }
 
