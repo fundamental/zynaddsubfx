@@ -69,10 +69,9 @@ class LFOParams:public Presets
         float         fadein; /**<fadein, relative to delay*/
         float         fadeout; /**<fadeout on key release (10.0=off)*/
         unsigned char Pcontinous; /**<1 if LFO is continous*/
-        unsigned char ratiofixed; /**<1 if LFO syncs to BPM*/
-        float         speedratio;
-        int           numerator;
-        int           denominator;
+        float         speedratio; /**<ratio between system tempo and LFO freq (0=off)*/
+        int           numerator;  /**<numerator for integer ratio between system tempo and LFO freq (0=off)*/
+        int           denominator;/**<denominator for integer ratio between system tempo and LFO freq (0=off)*/
         unsigned char Pstretch; /**<how the LFO is "stretched" according the note frequency (64=no stretch)*/
 
         //! what kind is the LFO (0 - frequency, 1 - amplitude, 2 - filter)
@@ -99,7 +98,7 @@ class LFOParams:public Presets
         float         Dfadeout;
         unsigned char Dcontinous;
         float         Dspeedratio;
-        int           Dnominator;
+        int           Dnumerator;
         int           Ddenominator;
 };
 

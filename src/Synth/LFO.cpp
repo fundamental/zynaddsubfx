@@ -91,7 +91,7 @@ void LFO::updatePars()
         lfofreq = lfopars.freq * lfostretch;   
     } else {
         tempo = time.tempo;
-        lfofreq = float(tempo) * float(lfopars.numerator)/(15.0f*float(lfopars.denominator));
+        lfofreq = float(tempo) * float(lfopars.denominator)/(240.0f * float(lfopars.numerator));
     }
     phaseInc = fabsf(lfofreq) * dt;
     
@@ -207,9 +207,10 @@ float LFO::lfoout()
         }
     }
     
+    // refresh freq if tempo has changed
     if (lfopars.numerator && lfopars.denominator && tempo != time.tempo) {
         tempo = time.tempo;
-        float lfofreq = (float(tempo)) / 15.0f * lfopars.denominator/lfopars.numerator;
+        float lfofreq = float(tempo) * float(lfopars.denominator)/(240.0f * float(lfopars.numerator));
         phaseInc = fabsf(lfofreq) * dt;
     }
 

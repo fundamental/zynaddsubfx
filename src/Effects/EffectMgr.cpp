@@ -120,32 +120,34 @@ static const rtosc::Ports local_ports = {
                 }
             }
         }},
-    {"ratiofixed::i", rOptions(SPEEDRATIO_OPTIONS)
-        rProp(parameter) rLinear(0,21)
-        rDoc("select fixed ratio for BPM based delay") 
-        rDefault(off), NULL,
+    {"numerator::i", rShort("num") rDefault(0) rLinear(0,99)
+        rProp(parameter) rDoc("Numerator of ratio to bpm"), NULL,
         [](const char *msg, rtosc::RtData &d)
         {
             EffectMgr *eff = (EffectMgr*)d.obj;
             if(rtosc_narguments(msg)) {
                 int val = rtosc_argument(msg, 0).i;
                 if (val) {
+                    eff->numerator = val;
                     int delay, Pfreq;
                     float freq;
                     switch(eff->nefx) {
                     case 2:
-                        delay =  (int)(S2DELAY / eff->time->tempo * speedratios[limit(val, 0, (int)(sizeof(speedratios)/sizeof(speedratios[0]))-1)]);
-                        eff->seteffectparrt(2, delay);
+                        // revert (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
+                        delay =  (int)((127.0f/1.5f) * (60.0f/ (float)eff->time->tempo) * 4.0f * ((float)eff->numerator/(float)eff->denominator));
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, delay);
                         break;
                     case 3:
                     case 4:
                     case 5:
                     case 8:
-                        freq =  (eff->time->tempo / 60.0f * speedratios[limit(val, 0, (int)(sizeof(speedratios)/sizeof(speedratios[0]))-1)]);
+                        freq =  ((float)eff->time->tempo / 15.0f * (float)eff->numerator/(float)eff->denominator);
                         // invert:
                         //(powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
                         Pfreq = logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f;
-                        eff->seteffectparrt(2, Pfreq);
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pfreq);
                         break;
                     case 1:
                     case 6:
@@ -178,11 +180,72 @@ static const rtosc::Ports local_ports = {
                     default:
                         break;
                     }
-                int i;
-                int ind_last = ((int)sizeof(speedratios)/(int)sizeof(speedratios[0]));
-                for (i=0; i<ind_last; ++i) if (speedratios[i] == value) break;
-                d.reply(d.loc, "i", i); 
+                d.reply(d.loc, "i", int(eff->denominator*value)); 
                     
+            }
+        }},
+    {"denominator::i", rShort("dem") rDefault(4) rLinear(0,99)
+        rProp(parameter) rDoc("Denominator of ratio to bpm"), NULL,
+        [](const char *msg, rtosc::RtData &d)
+        {
+            EffectMgr *eff = (EffectMgr*)d.obj;
+            if(rtosc_narguments(msg)) {
+                int val = rtosc_argument(msg, 0).i;
+                if (val) {
+                    eff->denominator = val;
+                    int Pdelay, Pfreq;
+                    float freq;
+                    switch(eff->nefx) {
+                    case 2:
+                        // revert delay = (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
+                        Pdelay =  (int)((20320.0f / (float)eff->time->tempo) * ((float)eff->numerator/(float)eff->denominator));
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pdelay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        freq =  ((float)eff->time->tempo / 15.0f * (float)eff->numerator/(float)eff->denominator);
+                        // invert:
+                        //(powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
+                        Pfreq = logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f;
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pfreq);
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                }
+                d.broadcast(d.loc, "i", val);
+            } else {
+                float value = 0;
+                int Pdelay, Pfreq;
+                float freq;
+                switch(eff->nefx) {
+                    case 2:
+                        Pdelay = eff->geteffectparrt(2);
+                        value =  eff->time->tempo / S2DELAY * Pdelay;
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        Pfreq = eff->geteffectparrt(2);
+                        freq = (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f;
+                        value = 60.0f / eff->time->tempo * freq;
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                    
+                d.reply(d.loc, "i", int(eff->numerator/value)); 
             }
         }},
     {"eq-coeffs:", rProp(internal) rDoc("Get equalizer Coefficients"), NULL,
