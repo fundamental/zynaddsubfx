@@ -31,7 +31,6 @@ struct SynthParams
     float     note_log2_freq; //Floating point value of the note
     bool      quiet;     //Initial output condition for legato notes
     prng_t    seed;      //Random seed
-    
 };
 
 struct LegatoParams
@@ -81,9 +80,6 @@ class SynthNote
         /* Random numbers with own seed */
         float getRandomFloat();
         prng_t getRandomUint();
-        
-        /* For midi synced LFOs*/
-        void setBPM(int bpm_, int phase_);
 
         //Realtime Safe Memory Allocator For notes
         class Allocator  &memory;
@@ -133,7 +129,6 @@ class SynthNote
         const AbsTime    &time;
         WatchManager     *wm;
         smooth_float     filtercutoff_relfreq;
-        int bpm, phase;
 };
 
 }
