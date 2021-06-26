@@ -96,7 +96,6 @@ class LFOParams:public Presets
         float         Dfadein;
         float         Dfadeout;
         unsigned char Dcontinous;
-        float         Dspeedratio;
         int           Dnumerator;
         int           Ddenominator;
 };
