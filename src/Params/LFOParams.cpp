@@ -103,6 +103,8 @@ static const rtosc::Ports _ports = {
      
     rToggle(Pcontinous, rShort("c"), rDefault(false),
             "Enable for global operation"),
+    rParamZyn(Pstretch, rShort("str"), rCentered, rDefault(64),
+        "Note frequency stretch"),
     rParamZyn(numerator, rShort("num"), rLinear(0,99), rDefault(0),
         "Numerator of ratio to bpm"),
     rParamZyn(denominator, rShort("dem"), rLinear(0,99), rDefault(4),
