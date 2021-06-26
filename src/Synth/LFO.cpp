@@ -84,6 +84,8 @@ void LFO::updatePars()
     int stretch = lfopars.Pstretch;
     if(stretch == 0)
         stretch = 1;
+
+    // stretch max 2x/octave
     const float lfostretch = powf(basefreq / 440.0f, (stretch - 64.0f) / 63.0f);
 
     float lfofreq;
