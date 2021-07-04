@@ -133,8 +133,10 @@ static const rtosc::Ports local_ports = {
                     float freq;
                     switch(eff->nefx) {
                     case 2:
-                        // revert (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
-                        Pdelay =  (int)((20320.0f / (float)eff->time->tempo) * ((float)eff->numerator/(float)eff->denominator));                        if (eff->numerator&&eff->denominator)
+                        // invert:
+                        // delay = (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
+                        Pdelay = (int)roundf((20320.0f / (float)eff->time->tempo) * 
+                                             ((float)eff->numerator / (float)eff->denominator));
                         if (eff->numerator&&eff->denominator)
                             eff->seteffectparrt(2, Pdelay);
                         break;
@@ -142,10 +144,11 @@ static const rtosc::Ports local_ports = {
                     case 4:
                     case 5:
                     case 8:
-                        freq =  ((float)eff->time->tempo / 15.0f * (float)eff->numerator/(float)eff->denominator);
+                        freq =  ((float)eff->time->tempo / 15.0f * 
+                                 (float)eff->numerator / (float)eff->denominator);
                         // invert:
-                        //(powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
-                        Pfreq = logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f;
+                        // (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
+                        Pfreq = (int)roundf(logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f);
                         if (eff->numerator&&eff->denominator)
                             eff->seteffectparrt(2, Pfreq);
                         break;
@@ -204,7 +207,8 @@ static const rtosc::Ports local_ports = {
                     case 2:
                         // invert:
                         // delay = (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
-                        Pdelay =  (int)((20320.0f / (float)eff->time->tempo) * ((float)eff->numerator/(float)eff->denominator));
+                        Pdelay = (int)roundf((20320.0f / (float)eff->time->tempo) * 
+                                             ((float)eff->numerator / (float)eff->denominator));
                         if (eff->numerator&&eff->denominator)
                             eff->seteffectparrt(2, Pdelay);
                         break;
@@ -212,10 +216,11 @@ static const rtosc::Ports local_ports = {
                     case 4:
                     case 5:
                     case 8:
-                        freq =  ((float)eff->time->tempo / 15.0f * (float)eff->numerator/(float)eff->denominator);
+                        freq =  ((float)eff->time->tempo / 15.0f * 
+                                 (float)eff->numerator / (float)eff->denominator);
                         // invert:
                         // (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
-                        Pfreq = logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f;
+                        Pfreq = (int)roundf(logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f);
                         if (eff->numerator&&eff->denominator)
                             eff->seteffectparrt(2, Pfreq);
                         break;
@@ -255,7 +260,6 @@ static const rtosc::Ports local_ports = {
                     default:
                         break;
                     }
-                    
                 d.reply(d.loc, "i", int(roundf(value))); 
             }
         }},

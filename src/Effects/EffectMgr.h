@@ -74,7 +74,8 @@ class EffectMgr:public Presets
         Effect *efx;
         const AbsTime *time;
         
-        int numerator, denominator;
+        int numerator = 0;
+        int denominator = 4;
         
     private:
 
