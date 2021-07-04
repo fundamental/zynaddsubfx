@@ -69,7 +69,7 @@ const rtosc::Ports FilterParams::ports = {
             rOptions(ad_global_filter, ad_voice_filter, sub_filter, in_effect),
             "location of the filter"),
     rOption(Pcategory,          rShort("class"),
-            rOptions(analog, formant, st.var.), rDefault(analog),
+            rOptions(analog, formant, st.var., moog), rDefault(analog),
             "Class of filter"),
     rOption(Ptype,              rShort("type"),
             rOptions(LP1, HP1, LP2, HP2, BP, notch, peak, l.shelf, h.shelf),
@@ -131,7 +131,9 @@ const rtosc::Ports FilterParams::ports = {
     {"type-svf::i", rProp(parameter) rShort("type")
         rOptions(low, high, band, notch)
             rDoc("Filter Type"), 0, rOptionCb(Ptype)},
-
+    {"type-moog::i", rProp(parameter) rShort("type")
+        rOptions(HP, BP, LP)
+            rDoc("Filter Type"), 0, rOptionCb(Ptype)},
     //UI reader
     {"Pvowels:", rDoc("Get Formant Vowels"), NULL,
         [](const char *, RtData &d) {
@@ -207,6 +209,19 @@ const rtosc::Ports FilterParams::ports = {
                         (float)obj->Pstages,
                         cf.b[0], cf.b[1], cf.b[2],
                         0.0,     -cf.a[1], -cf.a[2]);
+            } else if(obj->Pcategory == 3) {
+                int order = 0;
+                float gain = dB2rap(obj->getgain());
+                if(obj->Ptype != 6 && obj->Ptype != 7 && obj->Ptype != 8)
+                    gain = 1.0;
+                auto cf = AnalogFilter::computeCoeff(4-obj->Ptype,
+                        Filter::getrealfreq(obj->getfreq()),
+                        obj->getq(), obj->Pstages,
+                        gain, 48000, order);
+                d.reply(d.loc, "fffffff",
+                        (float)obj->Pstages,
+                        cf.c[0], cf.c[1], cf.c[2],
+                        0.0,     cf.d[1], cf.d[2]);
             }
         }},
     //    "", NULL, [](){}},"/freq"

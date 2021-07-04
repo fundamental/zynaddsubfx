@@ -164,6 +164,24 @@ delete (formantparswindow);} {}
             label 1NF
             xywh {164 164 100 20} labelfont 1 labelsize 10
           }
+        } Fl_Choice moogfiltertypechoice {
+          label FilterType
+          tooltip {The Filter type} xywh {10 50 50 15} down_box BORDER_BOX labelsize 10 align 5 textsize 10
+          code1 {o->init("Ptype");}
+          class Fl_Osc_Choice
+        } {
+          MenuItem {} {
+            label LP
+            xywh {134 134 100 20} labelfont 1 labelsize 10
+          }
+          MenuItem {} {
+            label HP
+            xywh {144 144 100 20} labelfont 1 labelsize 10
+          }
+          MenuItem {} {
+            label BP
+            xywh {154 154 100 20} labelfont 1 labelsize 10
+          }
         }
         Fl_Choice filtertype {
           label Category
@@ -183,6 +201,10 @@ delete (formantparswindow);} {}
           MenuItem {} {
             label StVarF
             xywh {70 70 100 20} labelfont 1 labelsize 10
+          }
+          MenuItem {} {
+            label Moog
+            xywh {80 80 100 20} labelfont 1 labelsize 10
           }
         }
         Fl_Dial cfreqdial {
@@ -436,10 +458,10 @@ formantfiltergraph->redraw();}
 //formant_q_dial->value(pars->Pvowels[nvowel].formants[nformant].q);
 //formant_amp_dial->value(pars->Pvowels[nvowel].formants[nformant].amp);
 if (nformant<numformants->value()) formantparsgroup->activate();
-	else formantparsgroup->deactivate();
+    else formantparsgroup->deactivate();
 
 if (nseqpos<sequencesize->value()) vowel_counter->activate();
-	else vowel_counter->deactivate();
+    else vowel_counter->deactivate();
 
 
 //vowel_counter->value(pars->Psequence[nseqpos].nvowel);} {}
@@ -451,25 +473,38 @@ formantfiltergraph->redraw();
 const int Pcategory = filtertype->value();
 const int Ptype     = analogfiltertypechoice->value();
 
-if (Pcategory==2) svfiltertypechoice->value(Ptype);
-if (Pcategory==0) analogfiltertypechoice->value(Ptype);
-
 const int categ=Pcategory;
-if ((categ==0)||(categ==2)) {
-	if (categ==0) {
-           analogfiltertypechoice->show();
-           svfiltertypechoice->hide();
-        } else {
-           svfiltertypechoice->show();
-           analogfiltertypechoice->hide();
-        };
-	editbutton->hide();
+
+if (categ == 3) {
+    stcounter->hide(); // not (yet?) implemented for moog filter
+}
+else {
+    stcounter->show();
+}
+
+switch(categ)
+{
+    case 2: svfiltertypechoice->value(Ptype); break;
+    case 0: analogfiltertypechoice->value(Ptype); break;
+    case 3: moogfiltertypechoice->value(Ptype); break;
+}
+
+analogfiltertypechoice->hide();
+svfiltertypechoice->hide();
+moogfiltertypechoice->hide();
+
+if ((categ==0)||(categ==2)||(categ==3)) {
+        switch (categ)
+        {
+            case 0: analogfiltertypechoice->show(); break;
+            case 2: svfiltertypechoice->show(); break;
+            case 3: moogfiltertypechoice->show(); break;
+        }
+        editbutton->hide();
         formantparswindow->hide();
         cfreqdial->label("C.freq");
 } else {
-	analogfiltertypechoice->hide();
-	svfiltertypechoice->hide();
-	editbutton->show();
+    editbutton->show();
         cfreqdial->label("BS.pos");
 };
 

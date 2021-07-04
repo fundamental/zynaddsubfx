@@ -19,6 +19,7 @@
 #include "AnalogFilter.h"
 #include "FormantFilter.h"
 #include "SVFilter.h"
+#include "MoogFilter.h"
 #include "../Params/FilterParams.h"
 #include "../Misc/Allocator.h"
 
@@ -51,6 +52,10 @@ Filter *Filter::generate(Allocator &memory, const FilterParams *pars,
             filter->outgain = dB2rap(pars->getgain());
             if(filter->outgain > 1.0f)
                 filter->outgain = sqrt(filter->outgain);
+            break;
+        case 3:
+            filter = memory.alloc<MoogFilter>(Ftype, 1000.0f, pars->getq(), srate, bufsize);
+            filter->setgain(pars->getgain());
             break;
         default:
             filter = memory.alloc<AnalogFilter>(Ftype, 1000.0f, pars->getq(), Fstages, srate, bufsize);
