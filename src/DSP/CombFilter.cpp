@@ -26,6 +26,7 @@ CombFilter::CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float
     //~ delay_smoothing.sample_rate(srate);
     //~ delay_smoothing.reset(samplerate/1000.0f);
     setfreq_and_q(Ffreq, Fq);
+    settype(type);
 }
 
 CombFilter::~CombFilter(void)
@@ -104,6 +105,7 @@ void CombFilter::setfreq(float freq)
 void CombFilter::setq(float q_)
 {
     q = cbrtf(0.0015f*q_);
+    settype(type);
 }
 
 void CombFilter::setgain(float dBgain)
