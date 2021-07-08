@@ -78,7 +78,7 @@ void CombFilter::filterout(float *smp)
         float pos = float(mem_size-buffersize+i)-delay;
         // add the fwd and bwd feedback samples to current sample
         smp[i] = smp[i]*gain + tanhX(
-            gainfwd * sampleLerp( input, pos) + 
+            gainfwd * sampleLerp( input, pos) - 
             gainbwd * sampleLerp(output, pos)); 
         // apply output gain
         smp[i] *= outgain;
@@ -99,7 +99,6 @@ void CombFilter::setfreq(float freq)
 {
     float ff = limit(freq, 25.0f, 40000.0f);
     delay = ((float)samplerate)/ff;
-
 }
 
 void CombFilter::setq(float q_)
