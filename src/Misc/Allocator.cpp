@@ -74,16 +74,16 @@ void *AllocatorClass::alloc_mem(size_t mem_size)
 {
     impl->totalAlloced += mem_size;
     void *mem = tlsf_malloc(impl->tlsf, mem_size);
-    //~ void *mem = malloc(mem_size);
-    //~ printf("Allocator.malloc(%p, %d) = %p\n", impl, mem_size, mem);
-    //~ printf("Allocator result = %p\n", mem);
+    //printf("Allocator.malloc(%p, %d) = %p\n", impl, mem_size, mem);
+    //void *mem = malloc(mem_size);
+    //printf("Allocator result = %p\n", mem);
     return mem;
 }
 void AllocatorClass::dealloc_mem(void *memory)
 {
-    //~ printf("dealloc_mem(%d)\n", tlsf_block_size(memory));
+    //printf("dealloc_mem(%d)\n", tlsf_block_size(memory));
     tlsf_free(impl->tlsf, memory);
-    //~ free(memory);
+    //free(memory);
 }
 
 bool AllocatorClass::lowMemory(unsigned n, size_t chunk_size) const

@@ -21,15 +21,15 @@ class CombFilter:public Filter
 {
     public:
         //! @param Fq resonance, range [0.1,1000], logscale
-        CombFilter(Allocator*, unsigned char Ftype, float Ffreq, float Fq,
+        CombFilter(Allocator *alloc, unsigned char Ftype, float Ffreq, float Fq,
                 unsigned int srate, int bufsize);
         ~CombFilter() override;
         void filterout(float *smp) override;
-        void setfreq(float /*frequency*/) override;
-        void setfreq_and_q(float frequency, float q_) override;
-        void setq(float /*q_*/) override;
+        void setfreq(float freq) override;
+        void setfreq_and_q(float freq, float q_) override;
+        void setq(float q) override;
         void setgain(float dBgain) override;
-        void settype(unsigned char type); //
+        void settype(unsigned char type);
 
     private:
     
@@ -50,8 +50,6 @@ class CombFilter:public Filter
         
         Allocator &memory;
         int mem_size;
-
-        //~ Value_Smoothing_Filter delay_smoothing;
 
 };
 

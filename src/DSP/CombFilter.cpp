@@ -50,14 +50,14 @@ inline float CombFilter::sampleLerp(float *smp, float pos) {
     return smp[poshi] + poslo * (smp[poshi+1]-smp[poshi]); 
 }
 
-inline float sampleLagrange3o4p(float *smp, float pos) {
-    // 4-point, 3rd-order Lagrange (x-form)
-    float c0 = smp[0];
-    float c1 = smp[1] - 0.33333333333f*smp[-1] - 0.5f*smp[0] - 0.16666666666f*smp[2];
-    float c2 = 0.5f*(smp[-1]+smp[1]) - smp[0];
-    float c3 = 0.16666666666f*(smp[2]-smp[-1]) + 0.5f*(smp[0]-smp[1]);
-    return 16.0f*(((c3*pos+c2)*pos+c1)*pos+c0);
-}
+//~ inline float sampleLagrange3o4p(float *smp, float pos) {
+    //~ // 4-point, 3rd-order Lagrange (x-form)
+    //~ float c0 = smp[0];
+    //~ float c1 = smp[1] - 0.33333333333f*smp[-1] - 0.5f*smp[0] - 0.16666666666f*smp[2];
+    //~ float c2 = 0.5f*(smp[-1]+smp[1]) - smp[0];
+    //~ float c3 = 0.16666666666f*(smp[2]-smp[-1]) + 0.5f*(smp[0]-smp[1]);
+    //~ return 16.0f*(((c3*pos+c2)*pos+c1)*pos+c0);
+//~ }
 
 void CombFilter::filterout(float *smp)
 {
@@ -73,31 +73,24 @@ void CombFilter::filterout(float *smp)
     memcpy(&input[mem_size-buffersize], smp, buffersize*sizeof(float));
     for (int i = 0; i < buffersize; i ++)
     {
-        // calculate the sample positions in the buffer
+        // calculate the feedback sample positions in the buffer
         float pos = float(mem_size-buffersize+i)-delay;
-        
-        if (pos>mem_size-2 || pos < 0)
-        {
-            // pos out of bounds
-            printf("i: %d\n", i);
-            printf("delay: %f\n", delay);
-            printf("pos: %f\n", pos);
-        }
-
+        // add the fwd and bwd feedback samples to current sample
         smp[i] = smp[i]*gain + tanhX(
             gainfwd * sampleLerp( input, pos) + 
             gainbwd * sampleLerp(output, pos)); 
+        // apply output gain
         smp[i] *= outgain;
     }
-    //  shift the buffer content one buffersize to the left
+    // shift the buffer content one buffersize to the left
     memmove(&output[0], &output[buffersize], (mem_size-buffersize)*sizeof(float));
     // copy new output samples to the right end of the buffer
     memcpy(&output[mem_size-buffersize], smp, buffersize*sizeof(float));
 }
 
-void CombFilter::setfreq_and_q(float frequency, float q)
+void CombFilter::setfreq_and_q(float freq, float q)
 {
-    setfreq(frequency);
+    setfreq(freq);
     setq(q);
 }
 
