@@ -35,7 +35,6 @@ class CombFilter:public Filter
     
         float* input;
         float* output;
-        unsigned sr;
         float gain;
         float q;
         unsigned char type;
@@ -47,15 +46,13 @@ class CombFilter:public Filter
 
         float gainfwd;
         float gainbwd;
-        float delayfwd;
-        float delaybwd;
-        
+        float delay;        
         
         Allocator &memory;
         int mem_size;
 
-        Value_Smoothing_Filter delayfwd_smoothing;
-        Value_Smoothing_Filter delaybwd_smoothing;
+        //~ Value_Smoothing_Filter delay_smoothing;
+
 };
 
 }
