@@ -52,7 +52,7 @@ class FilterParams:public PresetsArray
         float getfreqtracking(float notefreq) const ;
         float getgain() const ;
 
-        unsigned Pcategory:2;  //!< Filter category (Analog/Formant/StVar)
+        unsigned Pcategory:4;  //!< Filter category (Analog/Formant/StVar/Moog/Comb)
         unsigned Ptype:8;      //!< Filter type  (for analog lpf,hpf,bpf..)
         unsigned Pstages:8;    //!< filter stages+1
         float    basefreq;     //!< Base cutoff frequency (Hz)

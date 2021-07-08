@@ -45,6 +45,7 @@ class ModFilter
         void paramUpdate(Filter *&f);
         void svParamUpdate(SVFilter &sv);
         void anParamUpdate(AnalogFilter &an);
+        void cbParamUpdate(CombFilter &cb);
 
 
         const FilterParams &pars;  //Parameters to Pull Updates From
