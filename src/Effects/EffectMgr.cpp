@@ -28,10 +28,13 @@
 #include "Phaser.h"
 #include "../Misc/XMLwrapper.h"
 #include "../Misc/Util.h"
+#include "../Misc/Time.h"
 #include "../Params/FilterParams.h"
 #include "../Misc/Allocator.h"
 
 namespace zyn {
+
+static const float S2DELAY = 127.0f / 40.0f;
 
 #define rObject EffectMgr
 #define rSubtype(name) \
@@ -115,6 +118,149 @@ static const rtosc::Ports local_ports = {
                     sprintf(tail+1, "parameter%d", i);
                     d.broadcast(loc, "i", eff->geteffectparrt(i));
                 }
+            }
+        }},
+    {"numerator::i", rShort("num") rDefault(0) rLinear(0,99)
+        rProp(parameter) rDoc("Numerator of ratio to bpm"), NULL,
+        [](const char *msg, rtosc::RtData &d)
+        {
+            EffectMgr *eff = (EffectMgr*)d.obj;
+            if(rtosc_narguments(msg)) {
+                int val = rtosc_argument(msg, 0).i;
+                if (val) {
+                    eff->numerator = val;
+                    int Pdelay, Pfreq;
+                    float freq;
+                    switch(eff->nefx) {
+                    case 2:
+                        // invert:
+                        // delay = (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
+                        Pdelay = (int)roundf((20320.0f / (float)eff->time->tempo) * 
+                                             ((float)eff->numerator / (float)eff->denominator));
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pdelay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        freq =  ((float)eff->time->tempo / 15.0f * 
+                                 (float)eff->numerator / (float)eff->denominator);
+                        // invert:
+                        // (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
+                        Pfreq = (int)roundf(logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f);
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pfreq);
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                }
+                d.broadcast(d.loc, "i", val);
+            } else {
+                float value = 0;
+                int Pdelay, Pfreq;
+                float freq;
+                switch(eff->nefx) {
+                    case 2:
+                        Pdelay = eff->geteffectparrt(2);
+                        // calculate denominator from delay
+                        // given Pdelay = (20320 / tempo) * (numerator/denominator)
+                        // numerator = (tempo / 20320) * (denominator*Pdelay)
+                        value = ((float)eff->time->tempo / 20320.0f) * ((float)eff->denominator * (float)Pdelay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        Pfreq = eff->geteffectparrt(2);
+                        freq = (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f;
+                        // given freq = (tempo / 15.0) * (numerator/denominator)
+                        // numerator = (15.0 / tempo ) * (denominator*freq)
+                        value = (15.0f / (float)eff->time->tempo) * (float)eff->denominator * freq;
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                d.reply(d.loc, "i", int(roundf(value))); 
+                    
+            }
+        }},
+    {"denominator::i", rShort("dem") rDefault(4) rLinear(0,99)
+        rProp(parameter) rDoc("Denominator of ratio to bpm"), NULL,
+        [](const char *msg, rtosc::RtData &d)
+        {
+            EffectMgr *eff = (EffectMgr*)d.obj;
+            if(rtosc_narguments(msg)) {
+                int val = rtosc_argument(msg, 0).i;
+                if (val) {
+                    eff->denominator = val;
+                    int Pdelay, Pfreq;
+                    float freq;
+                    switch(eff->nefx) {
+                    case 2:
+                        // invert:
+                        // delay = (Pdelay / 127.0f * 1.5f); //0 .. 1.5 sec
+                        Pdelay = (int)roundf((20320.0f / (float)eff->time->tempo) * 
+                                             ((float)eff->numerator / (float)eff->denominator));
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pdelay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        freq =  ((float)eff->time->tempo / 15.0f * 
+                                 (float)eff->numerator / (float)eff->denominator);
+                        // invert:
+                        // (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f
+                        Pfreq = (int)roundf(logf((freq/0.03f)+1.0f)/LOG_2 * 12.7f);
+                        if (eff->numerator&&eff->denominator)
+                            eff->seteffectparrt(2, Pfreq);
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                }
+                d.broadcast(d.loc, "i", val);
+            } else {
+                float value = 0;
+                int Pdelay, Pfreq;
+                float freq;
+                switch(eff->nefx) {
+                    case 2:
+                        Pdelay = eff->geteffectparrt(2);
+                        // calculate denominator from delay
+                        // given Pdelay = (20320 / tempo) * (numerator/denominator)
+                        // denominator = (20320 / tempo) * (numerator/Pdelay)
+                        value = (20320.0f / (float)eff->time->tempo) * ((float)eff->numerator / (float)Pdelay);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 8:
+                        Pfreq = eff->geteffectparrt(2);
+                        freq = (powf(2.0f, Pfreq / 127.0f * 10.0f) - 1.0f) * 0.03f;
+                        // given freq = (tempo / 15.0) * (numerator/denominator)
+                        // denominator = (tempo / 15.0) * (numerator/freq)
+                        value = ((float)eff->time->tempo / 15.0f) * ((float)eff->numerator / freq);
+                        break;
+                    case 1:
+                    case 6:
+                    case 7:
+                    default:
+                        break;
+                    }
+                d.reply(d.loc, "i", int(roundf(value))); 
             }
         }},
     {"eq-coeffs:", rProp(internal) rDoc("Get equalizer Coefficients"), NULL,
