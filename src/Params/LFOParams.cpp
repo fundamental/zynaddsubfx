@@ -187,8 +187,6 @@ LFOParams::LFOParams(float freq_,
     Dfadein     = fadein_;
     Dfadeout    = fadeout_;
     Dcontinous  = Pcontinous_;
-    Dnumerator  = 0;
-    Ddenominator= 4;
 
     setup();
 }
@@ -211,8 +209,6 @@ LFOParams::LFOParams(consumer_location_t loc,
         Dfadein     = 0.0f;
         Dfadeout    = 10.0f;
         Dcontinous  = 0;
-        Dnumerator  = 0;
-        Ddenominator= 4;
 
     };
 
