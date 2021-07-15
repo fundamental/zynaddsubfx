@@ -215,10 +215,10 @@ float LFO::lfoout()
         float lfofreq = float(tempo) * float(lfopars.denominator)/(240.0f * float(lfopars.numerator));
         phaseInc = fabsf(lfofreq) * dt;
     }
-
-    float out = baseOut(waveShape, fmod(phase + (lfopars.Pstartphase + 63.0f) / 127.0f, 1.0f));
+    float phaseWithStartphase = fmod(phase + (lfopars.Pstartphase + 63.0f) / 127.0f, 1.0f);
+    float out = baseOut(waveShape, phaseWithStartphase);
     if(waveShape == LFO_SINE || waveShape == LFO_TRIANGLE)
-        out *= lfointensity * (amp1 + phase * (amp2 - amp1));
+        out *= lfointensity * (amp1 + phaseWithStartphase * (amp2 - amp1));
     else
         out *= lfointensity * amp2;
     
@@ -289,7 +289,7 @@ float LFO::lfoout()
         computeNextFreqRnd();
     }
             
-    float watch_data[2] = {phase, out};
+    float watch_data[2] = {phaseWithStartphase, out};
     watchOut(watch_data, 2);
 
     return out;
